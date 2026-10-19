@@ -12,7 +12,7 @@ const submit = new Hono<AppEnv>()
 submit.on(['POST', 'OPTIONS'], '/feedback', cors({ origin: '*', allowMethods: ['POST', 'OPTIONS'], allowHeaders: ['Content-Type'], maxAge: 86400 }))
 
 type Input = Record<string, unknown>
-const FIELDS = new Set(['app', 'type', 'content', 'extra', 'website'])
+const FIELDS = new Set(['app', 'content', 'extra', 'website'])
 
 function optString(input: Input, key: string, max: number): string | null {
   const v = input[key]
@@ -125,7 +125,6 @@ submit.post('/feedback', async (c) => {
   const row = {
     id,
     app,
-    type: optString(input, 'type', 32) ?? 'other',
     content,
     extra: JSON.stringify(extra),
     ...ctx,

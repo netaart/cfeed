@@ -6,7 +6,6 @@ export const MARKS: Mark[] = ['resolved', 'spam']
 export type Feedback = {
   id: string
   app: string
-  type: string
   content: string
   status: Status
   tags: string[]
@@ -71,6 +70,5 @@ export type ApiKey = {
 export type Stats = {
   total: number
   by_status: Partial<Record<Status, number>>
-  by_type: Record<string, number>
   daily: { date: string; count: number }[]
 }

@@ -12,14 +12,13 @@ const ALL = '__all'
 const EVERYTHING = '__everything'
 const PAGE = 50
 
-type Filters = { app: string; status: string; type: string; q: string; x: string }
+type Filters = { app: string; status: string; q: string; x: string }
 
 function buildQuery(f: Filters, cursor?: string | null): string {
   const p = new URLSearchParams()
   if (f.app !== ALL) p.set('app', f.app)
   if (f.status === EVERYTHING) p.set('status', STATUSES.join(','))
   else if (f.status !== ALL) p.set('status', f.status)
-  if (f.type !== ALL) p.set('type', f.type)
   if (f.q) p.set('q', f.q)
   for (const pair of f.x.split(/\s+/).filter(Boolean)) {
     const i = pair.indexOf('=')
@@ -32,7 +31,7 @@ function buildQuery(f: Filters, cursor?: string | null): string {
 
 export function FeedbackPage() {
   const { t, lang } = useT()
-  const [filters, setFilters] = useState<Filters>({ app: ALL, status: ALL, type: ALL, q: '', x: '' })
+  const [filters, setFilters] = useState<Filters>({ app: ALL, status: ALL, q: '', x: '' })
   const [qDraft, setQDraft] = useState('')
   const [xDraft, setXDraft] = useState('')
   const [apps, setApps] = useState<AppSummary[]>([])
@@ -98,7 +97,7 @@ export function FeedbackPage() {
     ...MARKS.map((s) => ({ label: t(`status.${s}`), value: stats?.by_status[s] ?? 0 }))
   ]
 
-  const activeFilters = [filters.app !== ALL, filters.status !== ALL, filters.type !== ALL, !!filters.x].filter(Boolean).length
+  const activeFilters = [filters.app !== ALL, filters.status !== ALL, !!filters.x].filter(Boolean).length
 
   const selects = (
     <>
@@ -106,7 +105,7 @@ export function FeedbackPage() {
         className="w-full sm:w-44"
         label={t('fb.app')}
         value={filters.app}
-        onChange={(app) => set({ app, type: ALL })}
+        onChange={(app) => set({ app })}
         options={[{ id: ALL, label: t('common.all') }, ...apps.map((a) => ({ id: a.app, label: a.name ? `${a.name} (${a.app})` : a.app }))]}
       />
       <SimpleSelect
@@ -119,13 +118,6 @@ export function FeedbackPage() {
           ...STATUSES.map((s) => ({ id: s, label: t(`status.${s}`) })),
           { id: EVERYTHING, label: t('status.everything') }
         ]}
-      />
-      <SimpleSelect
-        className="w-full sm:w-36"
-        label={t('fb.type')}
-        value={filters.type}
-        onChange={(type) => set({ type })}
-        options={[{ id: ALL, label: t('common.all') }, ...Object.keys(stats?.by_type ?? {}).map((k) => ({ id: k, label: k }))]}
       />
     </>
   )
@@ -213,7 +205,7 @@ export function FeedbackPage() {
                   variant="tertiary"
                   onPress={() => {
                     setXDraft('')
-                    set({ app: ALL, status: ALL, type: ALL, x: '' })
+                    set({ app: ALL, status: ALL, x: '' })
                   }}
                 >
                   {t('fb.reset')}
@@ -251,9 +243,6 @@ export function FeedbackPage() {
               <div className="flex items-center justify-between gap-2">
                 <div className="flex min-w-0 items-center gap-1.5">
                   <StatusChip status={fb.status} />
-                  <Chip size="sm" variant="secondary">
-                    {fb.type}
-                  </Chip>
                   <span className="truncate font-mono text-xs text-muted">{fb.app}</span>
                 </div>
                 <span className="shrink-0 text-xs text-muted tabular-nums">{fmtShortTime(fb.created_at, lang)}</span>
@@ -301,9 +290,6 @@ export function FeedbackPage() {
                       <div className="flex max-w-lg flex-col gap-1">
                         <span className="line-clamp-2 text-sm">{fb.content}</span>
                         <span className="flex flex-wrap items-center gap-1.5 text-xs text-muted">
-                          <Chip size="sm" variant="secondary">
-                            {fb.type}
-                          </Chip>
                           {fb.attachment_count > 0 && (
                             <span className="inline-flex items-center gap-0.5">
                               <Paperclip className="size-3" />

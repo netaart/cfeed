@@ -1,5 +1,5 @@
 import { TrashBin } from '@gravity-ui/icons'
-import { Alert, Button, Chip, Description, Input, Label, Modal, Spinner, TextArea, TextField, ToggleButton, ToggleButtonGroup, toast } from '@heroui/react'
+import { Alert, Button, Description, Input, Label, Modal, Spinner, TextArea, TextField, ToggleButton, ToggleButtonGroup, toast } from '@heroui/react'
 import { useEffect, useState } from 'react'
 import { api, errorMessage } from '../api'
 import { fmtBytes, fmtTime, join } from '../format'
@@ -82,9 +82,6 @@ export function FeedbackDetailModal({ id, onClose, onChanged, onDeleted }: Props
               {fb && (
                 <>
                   <StatusChip status={fb.status} />
-                  <Chip size="sm" variant="secondary">
-                    {fb.type}
-                  </Chip>
                   <span className="w-full font-mono text-xs font-normal break-all text-muted sm:w-auto">
                     {fb.app} · {fb.id}
                   </span>

@@ -63,7 +63,7 @@ Notes:
 
 - All primary keys are **ULIDs**: time-ordered and convenient for cursor pagination.
 - `feedback` columns fall into three groups:
-  1. **Client-writable**: `app type content extra`. cfeed defines no other app-level fields: contact, user id, rating, app version, page URL and the like belong in `extra`, shaped however each app wants.
+  1. **Client-writable**: `app content extra`. cfeed defines no other app-level fields: type/category, contact, user id, rating, app version, page URL and the like belong in `extra`, shaped however each app wants.
   2. **Server-captured**: `ua* client_hints ip_hash country region city timezone asn colo language referer origin`. Same-named fields sent by the client are ignored.
   3. **Triage**: `status tags note`, writable only with a `write` key or ADMIN_TOKEN. `status` is `open` (unmarked, the default), `resolved`, or `spam`; the console shows only the two marks.
 - Raw IPs are never stored, only `HMAC-SHA256(IP_SALT, ip)`. It is used for rate limiting and to spot repeated submissions from the same client.
@@ -85,7 +85,7 @@ To make `x.<path>` filters fast for arbitrary keys, every submission is also fla
 ```
 → `(version, "1.4.2")`, `(tags, "sync")`, `(tags, "ui")`, `(device.model, "Pixel 8")`.
 
-Migration `0003` backfills the table from existing rows with the same rules. Migration `0005` moved the former `contact / user_id / rating / app_version / page_url` columns into `extra` (and the index) and dropped them.
+Migration `0003` backfills the table from existing rows with the same rules. Migrations `0005` and `0006` moved the former `contact / user_id / rating / app_version / page_url / type` columns into `extra` (and the index) and dropped them; `type = 'other'` was the implicit default and was not carried over.
 
 ## 4. API
 
@@ -101,7 +101,6 @@ Both **multipart** (with attachments) and **JSON** (no attachments) are accepted
 |---|---|---|
 | `content` | ✅ | At most `MAX_CONTENT_CHARS` |
 | `app` | | Must match `^[a-z0-9][a-z0-9_-]{0,63}$`; defaults to `default`. May also be passed as `?app=` |
-| `type` | | Free-form; suggested `bug / feature / question / other` |
 | `extra` | | Any JSON object (JSON string in multipart, object in JSON). All app-specific data goes here |
 | `files` | | Multipart only, repeatable |
 | `website` | | Honeypot; if non-empty the submission is silently dropped with a 201 |
@@ -115,8 +114,8 @@ curl -X POST https://cfeed.example.workers.dev/api/v1/feedback \
 
 # With app, custom fields, and an attachment
 curl -X POST https://cfeed.example.workers.dev/api/v1/feedback \
-  -F app=memos-desktop -F type=bug -F content='Save button does nothing' \
-  -F extra='{"app_version":"1.4.2","user_id":"u_42","contact":"a@b.c"}' -F files=@screenshot.png
+  -F app=memos-desktop -F content='Save button does nothing' \
+  -F extra='{"type":"bug","app_version":"1.4.2","user_id":"u_42","contact":"a@b.c"}' -F files=@screenshot.png
 ```
 
 Response `201`:
@@ -145,7 +144,7 @@ A key scoped to one app is **forced** into that app; requesting any other `app` 
 | GET | `/api/v1/feedback` | read | List |
 | GET | `/api/v1/feedback/:id` | read | Detail, including attachments |
 | GET | `/api/v1/attachments/:id` | read | Stream an attachment from R2 |
-| GET | `/api/v1/stats` | read | Counts by status and type, plus daily counts for the last 30 days |
+| GET | `/api/v1/stats` | read | Counts by status, plus daily counts for the last 30 days |
 | GET | `/api/v1/apps` | read | Apps seen so far, with feedback count, latest time, and whether a config exists |
 | PATCH | `/api/v1/feedback/:id` | write | Update `status` (`open` / `resolved` / `spam`), `tags`, `note` |
 | DELETE | `/api/v1/feedback/:id` | write | Delete, including its R2 attachments |
@@ -155,7 +154,7 @@ List filters:
 | Parameter | Example | Notes |
 |---|---|---|
 | `app` | `app=memos-desktop,blog` | Comma-separated |
-| `status` `type` `country` `ua_os` `ua_device` | `status=open,resolved` | Comma-separated. `spam` is hidden unless `status` is given |
+| `status` `country` `ua_os` `ua_device` | `status=open,resolved` | Comma-separated. `spam` is hidden unless `status` is given |
 | `from` `to` | `2026-10-01` or a millisecond timestamp | Filters `created_at`; a date-only `to` is inclusive |
 | `q` | `crash` | `LIKE` match on `content` |
 | `x.<path>` | `x.version=1.4.2`, `x.device.model=iPhone15` | Filters on `extra` |
@@ -197,7 +196,7 @@ Bulk-deleting an app's feedback is planned for P2 (`DELETE /api/admin/feedback?a
 A React SPA built with [HeroUI v3](https://heroui.com) (React Aria + Tailwind v4). The UI is available in Chinese and English and follows the system dark mode. It has no auth logic of its own and relies entirely on the cookie set by `/api/admin/login`, which is also why `<img src="/api/v1/attachments/…">` works without extra handling.
 
 - Sign in with ADMIN_TOKEN.
-- **Feedback** (`#feedback`): stat cards; filter by app / status / type / content / extra (`version=1.4.2 plan=pro`); cursor pagination; a detail view with content, attachment previews, extra, and request context, plus resolved/spam marks, tags, note, and delete.
+- **Feedback** (`#feedback`): stat cards; filter by app / status / content / extra (`type=bug version=1.4.2`); cursor pagination; a detail view with content, attachment previews, extra, and request context, plus resolved/spam marks, tags, note, and delete.
 - **Apps** (`#apps`): every app seen with counts; create or edit configs (source domain allowlist, attachment limits, enable/disable); integration examples.
 - **API Keys** (`#keys`): issue (app scope and read/write; plaintext shown once) and revoke.
 

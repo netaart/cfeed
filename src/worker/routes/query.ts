@@ -6,7 +6,7 @@ import { fail } from '../lib/http'
 const query = new Hono<AppEnv>()
 
 const STATUSES = ['open', 'resolved', 'spam'] as const
-const LIST_FILTERS = ['status', 'type', 'country', 'ua_os', 'ua_device'] as const
+const LIST_FILTERS = ['status', 'country', 'ua_os', 'ua_device'] as const
 const X_PATH = /^[A-Za-z0-9_]+(\.[A-Za-z0-9_]+){0,4}$/
 const MAX_X_FILTERS = 5
 const SAFE_INLINE = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif'])
@@ -204,9 +204,8 @@ query.get('/stats', requireAuth('read'), async (c) => {
   const apps = scopeApps(c.get('auth'), csv(c.req.query('app')))
   const scope = apps.length ? `WHERE app IN (${placeholders(apps.length)})` : ''
   const since = Date.now() - 30 * 86_400_000
-  const [byStatus, byType, daily] = await c.env.DB.batch<{ k: string; n: number }>([
+  const [byStatus, daily] = await c.env.DB.batch<{ k: string; n: number }>([
     c.env.DB.prepare(`SELECT status AS k, COUNT(*) AS n FROM feedback ${scope} GROUP BY status`).bind(...apps),
-    c.env.DB.prepare(`SELECT type AS k, COUNT(*) AS n FROM feedback ${scope} GROUP BY type ORDER BY n DESC LIMIT 20`).bind(...apps),
     c.env.DB.prepare(
       `SELECT date(created_at / 1000, 'unixepoch') AS k, COUNT(*) AS n FROM feedback ${scope ? scope + ' AND' : 'WHERE'} created_at >= ? GROUP BY k ORDER BY k`
     ).bind(...apps, since)
@@ -215,7 +214,6 @@ query.get('/stats', requireAuth('read'), async (c) => {
   return c.json({
     total: byStatus.results.reduce((s, r) => s + r.n, 0),
     by_status: toMap(byStatus.results),
-    by_type: toMap(byType.results),
     daily: daily.results.map((r) => ({ date: r.k, count: r.n }))
   })
 })

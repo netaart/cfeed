@@ -128,8 +128,8 @@ export function AppsPage() {
   -H 'content-type: application/json' \\
   -d '{"app":"my-app","content":"Great app!","extra":{"version":"1.0.0"}}'`}</CodeBlock>
           <CodeBlock>{`curl -X POST ${location.origin}/api/v1/feedback \\
-  -F app=my-app -F type=bug -F content='Save button does nothing' \\
-  -F extra='{"version":"1.0.0"}' -F files=@screenshot.png`}</CodeBlock>
+  -F app=my-app -F content='Save button does nothing' \\
+  -F extra='{"type":"bug","version":"1.0.0"}' -F files=@screenshot.png`}</CodeBlock>
         </Card.Content>
       </Card>
 
