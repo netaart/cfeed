@@ -1,5 +1,5 @@
 import { AlertDialog, Button, Chip, Label, ListBox, Select } from '@heroui/react'
-import type { ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { useT } from './i18n'
 import type { Status } from './types'
 
@@ -24,19 +24,19 @@ export function KV({ label, children }: { label: string; children: ReactNode }) 
   return (
     <div className="min-w-0">
       <dt className="text-xs text-muted">{label}</dt>
-      <dd className="mt-0.5 break-words text-sm">{children ?? '—'}</dd>
+      <dd className="mt-0.5 text-sm [overflow-wrap:anywhere]">{children ?? '—'}</dd>
     </div>
   )
 }
 
 export function PageHeader({ title, desc, actions }: { title: string; desc?: string; actions?: ReactNode }) {
   return (
-    <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
-      <div>
-        <h2 className="text-xl font-semibold">{title}</h2>
+    <div className="mb-5 flex items-start justify-between gap-3">
+      <div className="min-w-0">
+        <h2 className="text-lg font-semibold sm:text-xl">{title}</h2>
         {desc && <p className="mt-1 max-w-2xl text-sm text-muted">{desc}</p>}
       </div>
-      {actions && <div className="flex gap-2">{actions}</div>}
+      {actions && <div className="flex shrink-0 gap-2">{actions}</div>}
     </div>
   )
 }
@@ -113,4 +113,21 @@ export function ConfirmButton(props: {
       </AlertDialog.Backdrop>
     </AlertDialog>
   )
+}
+
+const MOBILE_QUERY = '(max-width: 639px)'
+
+export function useIsMobile(): boolean {
+  const [mobile, setMobile] = useState(() => matchMedia(MOBILE_QUERY).matches)
+  useEffect(() => {
+    const mq = matchMedia(MOBILE_QUERY)
+    const on = () => setMobile(mq.matches)
+    mq.addEventListener('change', on)
+    return () => mq.removeEventListener('change', on)
+  }, [])
+  return mobile
+}
+
+export function EmptyState({ children }: { children: ReactNode }) {
+  return <div className="py-12 text-center text-sm text-muted">{children}</div>
 }

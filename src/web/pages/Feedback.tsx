@@ -1,11 +1,11 @@
-import { ArrowsRotateRight, Paperclip } from '@gravity-ui/icons'
-import { Alert, Button, Card, Chip, Input, Label, SearchField, Spinner, Table, TextField } from '@heroui/react'
+import { ArrowsRotateRight, Paperclip, Sliders } from '@gravity-ui/icons'
+import { Alert, Button, Card, Chip, Drawer, Input, Label, SearchField, Spinner, Table, TextField } from '@heroui/react'
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { api, errorMessage } from '../api'
-import { fmtTime, join } from '../format'
+import { fmtShortTime, fmtTime, join } from '../format'
 import { useT } from '../i18n'
 import { STATUSES, type AppSummary, type Feedback, type Stats } from '../types'
-import { SimpleSelect, StatusChip } from '../ui'
+import { SimpleSelect, StatusChip, useIsMobile } from '../ui'
 import { FeedbackDetailModal } from './FeedbackDetail'
 
 const ALL = '__all'
@@ -42,6 +42,8 @@ export function FeedbackPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [selected, setSelected] = useState<string | null>(null)
+  const [filtersOpen, setFiltersOpen] = useState(false)
+  const mobile = useIsMobile()
 
   const set = (patch: Partial<Filters>) => setFilters((f) => ({ ...f, ...patch }))
 
@@ -96,64 +98,134 @@ export function FeedbackPage() {
     ...(['open', 'in_progress', 'resolved', 'spam'] as const).map((s) => ({ label: t(`status.${s}`), value: stats?.by_status[s] ?? 0 }))
   ]
 
+  const activeFilters = [filters.app !== ALL, filters.status !== ALL, filters.type !== ALL, !!filters.x].filter(Boolean).length
+
+  const selects = (
+    <>
+      <SimpleSelect
+        className="w-full sm:w-44"
+        label={t('fb.app')}
+        value={filters.app}
+        onChange={(app) => set({ app, type: ALL })}
+        options={[{ id: ALL, label: t('common.all') }, ...apps.map((a) => ({ id: a.app, label: a.name ? `${a.name} (${a.app})` : a.app }))]}
+      />
+      <SimpleSelect
+        className="w-full sm:w-44"
+        label={t('fb.status')}
+        value={filters.status}
+        onChange={(status) => set({ status })}
+        options={[
+          { id: ALL, label: t('status.hideSpam') },
+          ...STATUSES.map((s) => ({ id: s, label: t(`status.${s}`) })),
+          { id: EVERYTHING, label: t('status.everything') }
+        ]}
+      />
+      <SimpleSelect
+        className="w-full sm:w-36"
+        label={t('fb.type')}
+        value={filters.type}
+        onChange={(type) => set({ type })}
+        options={[{ id: ALL, label: t('common.all') }, ...Object.keys(stats?.by_type ?? {}).map((k) => ({ id: k, label: k }))]}
+      />
+    </>
+  )
+
+  const extraField = (
+    <TextField className="w-full sm:w-60" value={xDraft} onChange={setXDraft}>
+      <Label>{t('fb.extraFilter')}</Label>
+      <Input placeholder={t('fb.extraFilterHint')} className="font-mono" />
+    </TextField>
+  )
+
+  const search = (
+    <SearchField className="min-w-0 flex-1 sm:w-56 sm:flex-none" value={qDraft} onChange={setQDraft} onClear={() => set({ q: '' })} aria-label={t('fb.search')}>
+      {!mobile && <Label>{t('fb.search')}</Label>}
+      <SearchField.Group>
+        <SearchField.SearchIcon />
+        <SearchField.Input placeholder={mobile ? t('fb.search') : undefined} />
+        <SearchField.ClearButton />
+      </SearchField.Group>
+    </SearchField>
+  )
+
+  const refreshButton = (
+    <Button type="submit" variant="secondary" isIconOnly aria-label={t('action.refresh')} className="shrink-0">
+      <ArrowsRotateRight />
+    </Button>
+  )
+
   return (
-    <div className="flex flex-col gap-5">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+    <div className="flex flex-col gap-4 sm:gap-5">
+      <div className="no-scrollbar -mx-4 flex snap-x scroll-px-4 gap-2 overflow-x-auto px-4 sm:mx-0 sm:grid sm:grid-cols-5 sm:gap-3 sm:overflow-visible sm:px-0">
         {statCards.map((c) => (
-          <Card key={c.label} className="gap-1 p-4">
-            <div className="text-xs text-muted">{c.label}</div>
-            <div className="text-2xl font-semibold tabular-nums">{c.value ?? '—'}</div>
+          <Card key={c.label} className="min-w-[6.5rem] shrink-0 snap-start gap-0.5 p-3 sm:min-w-0 sm:gap-1 sm:p-4">
+            <div className="text-xs whitespace-nowrap text-muted">{c.label}</div>
+            <div className="text-xl font-semibold tabular-nums sm:text-2xl">{c.value ?? '—'}</div>
           </Card>
         ))}
       </div>
 
-      <form onSubmit={applyText} className="flex flex-wrap items-end gap-3">
-        <SimpleSelect
-          className="w-44"
-          label={t('fb.app')}
-          value={filters.app}
-          onChange={(app) => set({ app, type: ALL })}
-          options={[{ id: ALL, label: t('common.all') }, ...apps.map((a) => ({ id: a.app, label: a.name ? `${a.name} (${a.app})` : a.app }))]}
-        />
-        <SimpleSelect
-          className="w-44"
-          label={t('fb.status')}
-          value={filters.status}
-          onChange={(status) => set({ status })}
-          options={[
-            { id: ALL, label: t('status.hideSpam') },
-            ...STATUSES.map((s) => ({ id: s, label: t(`status.${s}`) })),
-            { id: EVERYTHING, label: t('status.everything') }
-          ]}
-        />
-        <SimpleSelect
-          className="w-36"
-          label={t('fb.type')}
-          value={filters.type}
-          onChange={(type) => set({ type })}
-          options={[{ id: ALL, label: t('common.all') }, ...Object.keys(stats?.by_type ?? {}).map((k) => ({ id: k, label: k }))]}
-        />
-        <SearchField
-          className="w-56"
-          value={qDraft}
-          onChange={setQDraft}
-          onClear={() => set({ q: '' })}
-        >
-          <Label>{t('fb.search')}</Label>
-          <SearchField.Group>
-            <SearchField.SearchIcon />
-            <SearchField.Input />
-            <SearchField.ClearButton />
-          </SearchField.Group>
-        </SearchField>
-        <TextField className="w-60" value={xDraft} onChange={setXDraft}>
-          <Label>{t('fb.extraFilter')}</Label>
-          <Input placeholder={t('fb.extraFilterHint')} className="font-mono" />
-        </TextField>
-        <Button type="submit" variant="secondary" isIconOnly aria-label={t('action.refresh')}>
-          <ArrowsRotateRight />
-        </Button>
-      </form>
+      {mobile ? (
+        <form onSubmit={applyText} className="flex items-center gap-2">
+          {search}
+          <Button variant="secondary" className="relative shrink-0" isIconOnly aria-label={t('fb.filters')} onPress={() => setFiltersOpen(true)}>
+            <Sliders />
+            {activeFilters > 0 && (
+              <span className="absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-accent text-[10px] font-semibold text-accent-foreground">
+                {activeFilters}
+              </span>
+            )}
+          </Button>
+          {refreshButton}
+        </form>
+      ) : (
+        <form onSubmit={applyText} className="flex flex-wrap items-end gap-3">
+          {selects}
+          {search}
+          {extraField}
+          {refreshButton}
+        </form>
+      )}
+
+      {mobile && (
+        <Drawer.Backdrop isOpen={filtersOpen} onOpenChange={setFiltersOpen}>
+          <Drawer.Content placement="bottom">
+            <Drawer.Dialog>
+              <Drawer.Handle />
+              <Drawer.Header>
+                <Drawer.Heading>{t('fb.filters')}</Drawer.Heading>
+              </Drawer.Header>
+              <Drawer.Body>
+                <form
+                  id="mobile-filters"
+                  className="flex flex-col gap-4"
+                  onSubmit={(e) => {
+                    applyText(e)
+                    setFiltersOpen(false)
+                  }}
+                >
+                  {selects}
+                  {extraField}
+                </form>
+              </Drawer.Body>
+              <Drawer.Footer className="pb-safe">
+                <Button
+                  variant="tertiary"
+                  onPress={() => {
+                    setXDraft('')
+                    set({ app: ALL, status: ALL, type: ALL, x: '' })
+                  }}
+                >
+                  {t('fb.reset')}
+                </Button>
+                <Button type="submit" form="mobile-filters" className="flex-1">
+                  {t('fb.apply')}
+                </Button>
+              </Drawer.Footer>
+            </Drawer.Dialog>
+          </Drawer.Content>
+        </Drawer.Backdrop>
+      )}
 
       {error && (
         <Alert status="danger">
@@ -164,72 +236,115 @@ export function FeedbackPage() {
         </Alert>
       )}
 
-      <Table>
-        <Table.ScrollContainer>
-          <Table.Content aria-label={t('nav.feedback')} className="min-w-[960px]" onRowAction={(key) => setSelected(String(key))}>
-            <Table.Header>
-              <Table.Column isRowHeader>{t('fb.content')}</Table.Column>
-              <Table.Column>{t('fb.app')}</Table.Column>
-              <Table.Column>{t('fb.status')}</Table.Column>
-              <Table.Column>{t('fb.device')}</Table.Column>
-              <Table.Column>{t('fb.location')}</Table.Column>
-              <Table.Column>{t('fb.time')}</Table.Column>
-            </Table.Header>
-            <Table.Body
-              items={items}
-              renderEmptyState={() => (
-                <div className="py-14 text-center text-sm text-muted">{loading ? <Spinner /> : t('fb.empty')}</div>
-              )}
+      {mobile ? (
+        <div className="flex flex-col gap-2">
+          {items.length === 0 && (
+            <div className="py-14 text-center text-sm text-muted">{loading ? <Spinner /> : t('fb.empty')}</div>
+          )}
+          {items.map((fb) => (
+            <button
+              key={fb.id}
+              type="button"
+              onClick={() => setSelected(fb.id)}
+              className="w-full rounded-2xl bg-surface p-3.5 text-left shadow-sm transition-transform active:scale-[0.99]"
             >
-              {(fb) => (
-                <Table.Row id={fb.id} className="cursor-pointer">
-                  <Table.Cell>
-                    <div className="flex max-w-lg flex-col gap-1">
-                      <span className="line-clamp-2 text-sm">{fb.content}</span>
-                      <span className="flex flex-wrap items-center gap-1.5 text-xs text-muted">
-                        <Chip size="sm" variant="secondary">
-                          {fb.type}
-                        </Chip>
-                        {fb.attachment_count > 0 && (
-                          <span className="inline-flex items-center gap-0.5">
-                            <Paperclip className="size-3" />
-                            {fb.attachment_count}
-                          </span>
-                        )}
-                        {fb.tags.map((tag) => (
-                          <Chip key={tag} size="sm" variant="soft" color="accent">
-                            {tag}
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex min-w-0 items-center gap-1.5">
+                  <StatusChip status={fb.status} />
+                  <Chip size="sm" variant="secondary">
+                    {fb.type}
+                  </Chip>
+                  <span className="truncate font-mono text-xs text-muted">{fb.app}</span>
+                </div>
+                <span className="shrink-0 text-xs text-muted tabular-nums">{fmtShortTime(fb.created_at, lang)}</span>
+              </div>
+              <p className="mt-2 line-clamp-3 text-sm leading-relaxed break-words">{fb.content}</p>
+              <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
+                <span>{join(fb.ua_os, fb.ua_browser) || fb.ua_device || '—'}</span>
+                {(fb.country || fb.city) && <span>· {join(fb.country, fb.city)}</span>}
+                {fb.attachment_count > 0 && (
+                  <span className="inline-flex items-center gap-0.5">
+                    · <Paperclip className="size-3" />
+                    {fb.attachment_count}
+                  </span>
+                )}
+                {fb.tags.map((tag) => (
+                  <Chip key={tag} size="sm" variant="soft" color="accent">
+                    {tag}
+                  </Chip>
+                ))}
+              </div>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <Table>
+          <Table.ScrollContainer>
+            <Table.Content aria-label={t('nav.feedback')} className="min-w-[960px]" onRowAction={(key) => setSelected(String(key))}>
+              <Table.Header>
+                <Table.Column isRowHeader>{t('fb.content')}</Table.Column>
+                <Table.Column>{t('fb.app')}</Table.Column>
+                <Table.Column>{t('fb.status')}</Table.Column>
+                <Table.Column>{t('fb.device')}</Table.Column>
+                <Table.Column>{t('fb.location')}</Table.Column>
+                <Table.Column>{t('fb.time')}</Table.Column>
+              </Table.Header>
+              <Table.Body
+                items={items}
+                renderEmptyState={() => (
+                  <div className="py-14 text-center text-sm text-muted">{loading ? <Spinner /> : t('fb.empty')}</div>
+                )}
+              >
+                {(fb) => (
+                  <Table.Row id={fb.id} className="cursor-pointer">
+                    <Table.Cell>
+                      <div className="flex max-w-lg flex-col gap-1">
+                        <span className="line-clamp-2 text-sm">{fb.content}</span>
+                        <span className="flex flex-wrap items-center gap-1.5 text-xs text-muted">
+                          <Chip size="sm" variant="secondary">
+                            {fb.type}
                           </Chip>
-                        ))}
-                      </span>
-                    </div>
-                  </Table.Cell>
-                  <Table.Cell>
-                    <span className="font-mono text-xs">{fb.app}</span>
-                  </Table.Cell>
-                  <Table.Cell>
-                    <StatusChip status={fb.status} />
-                  </Table.Cell>
-                  <Table.Cell>
-                    <div className="text-sm">{join(fb.ua_os, fb.ua_browser) || '—'}</div>
-                    <div className="text-xs text-muted">{fb.ua_device}</div>
-                  </Table.Cell>
-                  <Table.Cell>
-                    <span className="text-sm">{join(fb.country, fb.city) || '—'}</span>
-                  </Table.Cell>
-                  <Table.Cell>
-                    <span className="text-sm whitespace-nowrap text-muted">{fmtTime(fb.created_at, lang)}</span>
-                  </Table.Cell>
-                </Table.Row>
-              )}
-            </Table.Body>
-          </Table.Content>
-        </Table.ScrollContainer>
-      </Table>
+                          {fb.attachment_count > 0 && (
+                            <span className="inline-flex items-center gap-0.5">
+                              <Paperclip className="size-3" />
+                              {fb.attachment_count}
+                            </span>
+                          )}
+                          {fb.tags.map((tag) => (
+                            <Chip key={tag} size="sm" variant="soft" color="accent">
+                              {tag}
+                            </Chip>
+                          ))}
+                        </span>
+                      </div>
+                    </Table.Cell>
+                    <Table.Cell>
+                      <span className="font-mono text-xs">{fb.app}</span>
+                    </Table.Cell>
+                    <Table.Cell>
+                      <StatusChip status={fb.status} />
+                    </Table.Cell>
+                    <Table.Cell>
+                      <div className="text-sm">{join(fb.ua_os, fb.ua_browser) || '—'}</div>
+                      <div className="text-xs text-muted">{fb.ua_device}</div>
+                    </Table.Cell>
+                    <Table.Cell>
+                      <span className="text-sm">{join(fb.country, fb.city) || '—'}</span>
+                    </Table.Cell>
+                    <Table.Cell>
+                      <span className="text-sm whitespace-nowrap text-muted">{fmtTime(fb.created_at, lang)}</span>
+                    </Table.Cell>
+                  </Table.Row>
+                )}
+              </Table.Body>
+            </Table.Content>
+          </Table.ScrollContainer>
+        </Table>
+      )}
 
       {cursor && (
         <div className="flex justify-center">
-          <Button variant="tertiary" isPending={loading} onPress={() => load(true)}>
+          <Button variant="tertiary" isPending={loading} onPress={() => load(true)} className="w-full sm:w-auto">
             {loading && <Spinner color="current" size="sm" />}
             {t('action.loadMore')}
           </Button>

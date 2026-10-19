@@ -1,17 +1,18 @@
-import { Gear, Plus } from '@gravity-ui/icons'
+import { ChevronRight, Gear, Plus } from '@gravity-ui/icons'
 import { Button, Card, Chip, Description, Input, Label, Modal, Switch, Table, TextArea, TextField, toast } from '@heroui/react'
 import { useEffect, useState } from 'react'
 import { api, errorMessage } from '../api'
 import { fmtTime } from '../format'
 import { useT } from '../i18n'
 import type { AppConfig, AppSummary } from '../types'
-import { CodeBlock, ConfirmButton, PageHeader } from '../ui'
+import { CodeBlock, ConfirmButton, EmptyState, PageHeader, useIsMobile } from '../ui'
 
 const SLUG = /^[a-z0-9][a-z0-9_-]{0,63}$/
 
 export function AppsPage() {
   const { t, lang } = useT()
   const [apps, setApps] = useState<AppSummary[]>([])
+  const mobile = useIsMobile()
   const [configs, setConfigs] = useState<AppConfig[]>([])
   const [editing, setEditing] = useState<{ slug: string; config: AppConfig | null } | null>(null)
 
@@ -29,59 +30,93 @@ export function AppsPage() {
         title={t('apps.title')}
         desc={t('apps.desc')}
         actions={
-          <Button onPress={() => setEditing({ slug: '', config: null })}>
+          <Button onPress={() => setEditing({ slug: '', config: null })} isIconOnly={mobile} aria-label={t('apps.new')}>
             <Plus />
-            {t('apps.new')}
+            {!mobile && t('apps.new')}
           </Button>
         }
       />
 
-      <Table>
-        <Table.ScrollContainer>
-          <Table.Content aria-label={t('apps.title')} className="min-w-[720px]">
-            <Table.Header>
-              <Table.Column isRowHeader>{t('fb.app')}</Table.Column>
-              <Table.Column>{t('apps.count')}</Table.Column>
-              <Table.Column>{t('apps.last')}</Table.Column>
-              <Table.Column>{t('apps.config')}</Table.Column>
-              <Table.Column> </Table.Column>
-            </Table.Header>
-            <Table.Body items={apps.map((a) => ({ ...a, id: a.app }))} renderEmptyState={() => <div className="py-12 text-center text-sm text-muted">{t('common.none')}</div>}>
-              {(a) => (
-                <Table.Row id={a.app}>
-                  <Table.Cell>
-                    <div className="font-mono text-sm">{a.app}</div>
-                    {a.name && <div className="text-xs text-muted">{a.name}</div>}
-                  </Table.Cell>
-                  <Table.Cell>
-                    <span className="tabular-nums">{a.count}</span>
-                  </Table.Cell>
-                  <Table.Cell>
-                    <span className="text-sm text-muted">{fmtTime(a.last_at, lang)}</span>
-                  </Table.Cell>
-                  <Table.Cell>
-                    {a.status === 'disabled' ? (
-                      <Chip size="sm" variant="soft" color="danger">
-                        {t('apps.disabled')}
-                      </Chip>
-                    ) : (
-                      <Chip size="sm" variant="soft" color={a.registered ? 'accent' : 'default'}>
-                        {t(a.registered ? 'apps.registered' : 'apps.unregistered')}
-                      </Chip>
-                    )}
-                  </Table.Cell>
-                  <Table.Cell>
-                    <Button size="sm" variant="tertiary" onPress={() => edit(a.app)}>
-                      <Gear />
-                      {t('apps.config')}
-                    </Button>
-                  </Table.Cell>
-                </Table.Row>
-              )}
-            </Table.Body>
-          </Table.Content>
-        </Table.ScrollContainer>
-      </Table>
+      {mobile ? (
+        <div className="flex flex-col gap-2">
+          {apps.length === 0 && <EmptyState>{t('common.none')}</EmptyState>}
+          {apps.map((a) => (
+            <button
+              key={a.app}
+              type="button"
+              onClick={() => edit(a.app)}
+              className="flex w-full items-center gap-3 rounded-2xl bg-surface p-3.5 text-left shadow-sm transition-transform active:scale-[0.99]"
+            >
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="truncate font-mono text-sm">{a.app}</span>
+                  {a.status === 'disabled' ? (
+                    <Chip size="sm" variant="soft" color="danger">
+                      {t('apps.disabled')}
+                    </Chip>
+                  ) : (
+                    <Chip size="sm" variant="soft" color={a.registered ? 'accent' : 'default'}>
+                      {t(a.registered ? 'apps.registered' : 'apps.unregistered')}
+                    </Chip>
+                  )}
+                </div>
+                {a.name && <div className="truncate text-xs text-muted">{a.name}</div>}
+                <div className="mt-1 text-xs text-muted">
+                  {t('apps.count')} <span className="text-foreground tabular-nums">{a.count}</span> · {fmtTime(a.last_at, lang)}
+                </div>
+              </div>
+              <ChevronRight className="size-4 shrink-0 text-muted" />
+            </button>
+          ))}
+        </div>
+      ) : (
+        <Table>
+          <Table.ScrollContainer>
+            <Table.Content aria-label={t('apps.title')} className="min-w-[720px]">
+              <Table.Header>
+                <Table.Column isRowHeader>{t('fb.app')}</Table.Column>
+                <Table.Column>{t('apps.count')}</Table.Column>
+                <Table.Column>{t('apps.last')}</Table.Column>
+                <Table.Column>{t('apps.config')}</Table.Column>
+                <Table.Column> </Table.Column>
+              </Table.Header>
+              <Table.Body items={apps.map((a) => ({ ...a, id: a.app }))} renderEmptyState={() => <div className="py-12 text-center text-sm text-muted">{t('common.none')}</div>}>
+                {(a) => (
+                  <Table.Row id={a.app}>
+                    <Table.Cell>
+                      <div className="font-mono text-sm">{a.app}</div>
+                      {a.name && <div className="text-xs text-muted">{a.name}</div>}
+                    </Table.Cell>
+                    <Table.Cell>
+                      <span className="tabular-nums">{a.count}</span>
+                    </Table.Cell>
+                    <Table.Cell>
+                      <span className="text-sm text-muted">{fmtTime(a.last_at, lang)}</span>
+                    </Table.Cell>
+                    <Table.Cell>
+                      {a.status === 'disabled' ? (
+                        <Chip size="sm" variant="soft" color="danger">
+                          {t('apps.disabled')}
+                        </Chip>
+                      ) : (
+                        <Chip size="sm" variant="soft" color={a.registered ? 'accent' : 'default'}>
+                          {t(a.registered ? 'apps.registered' : 'apps.unregistered')}
+                        </Chip>
+                      )}
+                    </Table.Cell>
+                    <Table.Cell>
+                      <Button size="sm" variant="tertiary" onPress={() => edit(a.app)}>
+                        <Gear />
+                        {t('apps.config')}
+                      </Button>
+                    </Table.Cell>
+                  </Table.Row>
+                )}
+              </Table.Body>
+            </Table.Content>
+          </Table.ScrollContainer>
+        </Table>
+      )}
 
       <Card>
         <Card.Header>
@@ -145,6 +180,7 @@ function AppConfigModal({
   const [pending, setPending] = useState(false)
   const set = (patch: Partial<Form>) => setForm((f) => ({ ...f, ...patch }))
   const isNew = !editing?.slug
+  const mobile = useIsMobile()
 
   useEffect(() => {
     if (editing) setForm(toForm(editing.slug, editing.config))
@@ -199,7 +235,7 @@ function AppConfigModal({
 
   return (
     <Modal.Backdrop isOpen={!!editing} onOpenChange={(o) => !o && onClose()}>
-      <Modal.Container size="lg" scroll="inside">
+      <Modal.Container size={mobile ? 'full' : 'lg'} scroll="inside">
         <Modal.Dialog className="sm:max-w-2xl">
           <Modal.CloseTrigger />
           <Modal.Header>
@@ -279,7 +315,7 @@ function AppConfigModal({
               </TextField>
             </form>
           </Modal.Body>
-          <Modal.Footer className="justify-between">
+          <Modal.Footer className="pb-safe justify-between">
             <div>
               {editing?.config && <ConfirmButton label={t('apps.deleteConfig')} title={t('apps.deleteConfig')} desc={t('apps.deleteConfirm')} onConfirm={remove} />}
             </div>

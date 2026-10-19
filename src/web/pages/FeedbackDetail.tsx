@@ -5,7 +5,7 @@ import { api, errorMessage } from '../api'
 import { fmtBytes, fmtTime, join } from '../format'
 import { useT } from '../i18n'
 import { STATUSES, type Feedback, type FeedbackDetail } from '../types'
-import { CodeBlock, ConfirmButton, KV, SimpleSelect, StatusChip } from '../ui'
+import { CodeBlock, ConfirmButton, KV, SimpleSelect, StatusChip, useIsMobile } from '../ui'
 
 type Props = {
   id: string | null
@@ -22,6 +22,7 @@ export function FeedbackDetailModal({ id, onClose, onChanged, onDeleted }: Props
   const [tags, setTags] = useState('')
   const [note, setNote] = useState('')
   const [saving, setSaving] = useState(false)
+  const mobile = useIsMobile()
 
   useEffect(() => {
     if (!id) return
@@ -72,11 +73,11 @@ export function FeedbackDetailModal({ id, onClose, onChanged, onDeleted }: Props
 
   return (
     <Modal.Backdrop isOpen={!!id} onOpenChange={(open) => !open && onClose()}>
-      <Modal.Container size="lg" scroll="inside">
+      <Modal.Container size={mobile ? 'full' : 'lg'} scroll="inside">
         <Modal.Dialog className="sm:max-w-3xl">
           <Modal.CloseTrigger />
           <Modal.Header>
-            <Modal.Heading className="flex flex-wrap items-center gap-2">
+            <Modal.Heading className="flex flex-wrap items-center gap-2 pr-8">
               {t('fb.detail')}
               {fb && (
                 <>
@@ -84,7 +85,7 @@ export function FeedbackDetailModal({ id, onClose, onChanged, onDeleted }: Props
                   <Chip size="sm" variant="secondary">
                     {fb.type}
                   </Chip>
-                  <span className="font-mono text-xs font-normal text-muted">
+                  <span className="w-full font-mono text-xs font-normal break-all text-muted sm:w-auto">
                     {fb.app} · {fb.id}
                   </span>
                 </>
@@ -108,7 +109,7 @@ export function FeedbackDetailModal({ id, onClose, onChanged, onDeleted }: Props
             {fb && (
               <div className="flex flex-col gap-6">
                 <section>
-                  <p className="text-base leading-relaxed whitespace-pre-wrap">{fb.content}</p>
+                  <p className="text-base leading-relaxed break-words whitespace-pre-wrap">{fb.content}</p>
                   <p className="mt-2 text-xs text-muted">{fmtTime(fb.created_at, lang)}</p>
                 </section>
 
@@ -128,14 +129,14 @@ export function FeedbackDetailModal({ id, onClose, onChanged, onDeleted }: Props
                     <div className="flex flex-wrap gap-3">
                       {images.map((a) => (
                         <a key={a.id} href={a.url} target="_blank" rel="noreferrer" title={a.filename}>
-                          <img src={a.url} alt={a.filename} className="h-28 w-auto max-w-56 rounded-lg border border-separator object-cover" />
+                          <img src={a.url} alt={a.filename} className="h-28 w-auto max-w-full rounded-lg border border-separator object-cover sm:max-w-56" />
                         </a>
                       ))}
                     </div>
                     {others.length > 0 && (
                       <ul className="mt-3 flex flex-col gap-1 text-sm">
                         {others.map((a) => (
-                          <li key={a.id}>
+                          <li key={a.id} className="break-all">
                             <a className="text-accent hover:underline" href={a.url}>
                               {a.filename}
                             </a>{' '}
@@ -174,7 +175,7 @@ export function FeedbackDetailModal({ id, onClose, onChanged, onDeleted }: Props
                   {fb.ua && <p className="mt-3 font-mono text-xs break-all text-muted">{fb.ua}</p>}
                 </section>
 
-                <section className="flex flex-col gap-3 rounded-2xl border border-separator p-4">
+                <section className="flex flex-col gap-3 rounded-2xl border border-separator p-3 sm:p-4">
                   <h3 className="text-sm font-medium">{t('fb.manage')}</h3>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <SimpleSelect
@@ -197,7 +198,7 @@ export function FeedbackDetailModal({ id, onClose, onChanged, onDeleted }: Props
             )}
           </Modal.Body>
           {fb && (
-            <Modal.Footer className="justify-between">
+            <Modal.Footer className="pb-safe justify-between">
               <ConfirmButton
                 label={
                   <>

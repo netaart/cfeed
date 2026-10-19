@@ -5,12 +5,13 @@ import { api, errorMessage } from '../api'
 import { fmtTime } from '../format'
 import { useT } from '../i18n'
 import type { ApiKey } from '../types'
-import { CodeBlock, ConfirmButton, PageHeader, SimpleSelect } from '../ui'
+import { CodeBlock, ConfirmButton, EmptyState, PageHeader, SimpleSelect, useIsMobile } from '../ui'
 
 export function KeysPage() {
   const { t, lang } = useT()
   const [keys, setKeys] = useState<ApiKey[]>([])
   const [open, setOpen] = useState(false)
+  const mobile = useIsMobile()
 
   const load = () => api<{ items: ApiKey[] }>('/api/admin/keys').then((r) => setKeys(r.items), (e) => toast.danger(errorMessage(e)))
   useEffect(() => void load(), [])
@@ -30,60 +31,99 @@ export function KeysPage() {
         title={t('keys.title')}
         desc={t('keys.desc')}
         actions={
-          <Button onPress={() => setOpen(true)}>
+          <Button onPress={() => setOpen(true)} isIconOnly={mobile} aria-label={t('keys.new')}>
             <Plus />
-            {t('keys.new')}
+            {!mobile && t('keys.new')}
           </Button>
         }
       />
-      <Table>
-        <Table.ScrollContainer>
-          <Table.Content aria-label={t('keys.title')} className="min-w-[860px]">
-            <Table.Header>
-              <Table.Column isRowHeader>{t('keys.name')}</Table.Column>
-              <Table.Column>{t('keys.prefix')}</Table.Column>
-              <Table.Column>{t('keys.app')}</Table.Column>
-              <Table.Column>{t('keys.scope')}</Table.Column>
-              <Table.Column>{t('keys.created')}</Table.Column>
-              <Table.Column>{t('keys.lastUsed')}</Table.Column>
-              <Table.Column>{t('fb.status')}</Table.Column>
-              <Table.Column> </Table.Column>
-            </Table.Header>
-            <Table.Body items={keys} renderEmptyState={() => <div className="py-12 text-center text-sm text-muted">{t('common.none')}</div>}>
-              {(k) => (
-                <Table.Row id={k.id}>
-                  <Table.Cell>{k.name}</Table.Cell>
-                  <Table.Cell>
-                    <span className="font-mono text-xs">{k.key_prefix}…</span>
-                  </Table.Cell>
-                  <Table.Cell>{k.app ? <span className="font-mono text-xs">{k.app}</span> : <span className="text-muted">{t('keys.allApps')}</span>}</Table.Cell>
-                  <Table.Cell>
-                    <Chip size="sm" variant="soft" color={k.scope === 'write' ? 'warning' : 'default'}>
-                      {t(k.scope === 'write' ? 'keys.write' : 'keys.read')}
-                    </Chip>
-                  </Table.Cell>
-                  <Table.Cell>
-                    <span className="text-sm text-muted">{fmtTime(k.created_at, lang)}</span>
-                  </Table.Cell>
-                  <Table.Cell>
-                    <span className="text-sm text-muted">{fmtTime(k.last_used_at, lang)}</span>
-                  </Table.Cell>
-                  <Table.Cell>
-                    <Chip size="sm" variant="soft" color={k.revoked_at ? 'danger' : 'success'}>
-                      {t(k.revoked_at ? 'keys.revoked' : 'keys.active')}
-                    </Chip>
-                  </Table.Cell>
-                  <Table.Cell>
-                    {!k.revoked_at && (
-                      <ConfirmButton size="sm" label={t('keys.revoke')} title={`${t('keys.revoke')} ${k.name}?`} desc={t('keys.revokeConfirm')} onConfirm={() => revoke(k.id)} />
-                    )}
-                  </Table.Cell>
-                </Table.Row>
+      {mobile ? (
+        <div className="flex flex-col gap-2">
+          {keys.length === 0 && <EmptyState>{t('common.none')}</EmptyState>}
+          {keys.map((k) => (
+            <div key={k.id} className={`rounded-2xl bg-surface p-3.5 shadow-sm ${k.revoked_at ? 'opacity-60' : ''}`}>
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="truncate font-medium">{k.name}</div>
+                  <div className="font-mono text-xs text-muted">{k.key_prefix}…</div>
+                </div>
+                <div className="flex shrink-0 gap-1">
+                  <Chip size="sm" variant="soft" color={k.scope === 'write' ? 'warning' : 'default'}>
+                    {t(k.scope === 'write' ? 'keys.write' : 'keys.read')}
+                  </Chip>
+                  <Chip size="sm" variant="soft" color={k.revoked_at ? 'danger' : 'success'}>
+                    {t(k.revoked_at ? 'keys.revoked' : 'keys.active')}
+                  </Chip>
+                </div>
+              </div>
+              <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
+                <div className="min-w-0">
+                  <dt className="text-muted">{t('keys.app')}</dt>
+                  <dd className="truncate font-mono">{k.app ?? t('keys.allApps')}</dd>
+                </div>
+                <div>
+                  <dt className="text-muted">{t('keys.lastUsed')}</dt>
+                  <dd>{fmtTime(k.last_used_at, lang)}</dd>
+                </div>
+              </dl>
+              {!k.revoked_at && (
+                <div className="mt-3 flex justify-end">
+                  <ConfirmButton size="sm" label={t('keys.revoke')} title={`${t('keys.revoke')} ${k.name}?`} desc={t('keys.revokeConfirm')} onConfirm={() => revoke(k.id)} />
+                </div>
               )}
-            </Table.Body>
-          </Table.Content>
-        </Table.ScrollContainer>
-      </Table>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <Table>
+          <Table.ScrollContainer>
+            <Table.Content aria-label={t('keys.title')} className="min-w-[860px]">
+              <Table.Header>
+                <Table.Column isRowHeader>{t('keys.name')}</Table.Column>
+                <Table.Column>{t('keys.prefix')}</Table.Column>
+                <Table.Column>{t('keys.app')}</Table.Column>
+                <Table.Column>{t('keys.scope')}</Table.Column>
+                <Table.Column>{t('keys.created')}</Table.Column>
+                <Table.Column>{t('keys.lastUsed')}</Table.Column>
+                <Table.Column>{t('fb.status')}</Table.Column>
+                <Table.Column> </Table.Column>
+              </Table.Header>
+              <Table.Body items={keys} renderEmptyState={() => <div className="py-12 text-center text-sm text-muted">{t('common.none')}</div>}>
+                {(k) => (
+                  <Table.Row id={k.id}>
+                    <Table.Cell>{k.name}</Table.Cell>
+                    <Table.Cell>
+                      <span className="font-mono text-xs">{k.key_prefix}…</span>
+                    </Table.Cell>
+                    <Table.Cell>{k.app ? <span className="font-mono text-xs">{k.app}</span> : <span className="text-muted">{t('keys.allApps')}</span>}</Table.Cell>
+                    <Table.Cell>
+                      <Chip size="sm" variant="soft" color={k.scope === 'write' ? 'warning' : 'default'}>
+                        {t(k.scope === 'write' ? 'keys.write' : 'keys.read')}
+                      </Chip>
+                    </Table.Cell>
+                    <Table.Cell>
+                      <span className="text-sm text-muted">{fmtTime(k.created_at, lang)}</span>
+                    </Table.Cell>
+                    <Table.Cell>
+                      <span className="text-sm text-muted">{fmtTime(k.last_used_at, lang)}</span>
+                    </Table.Cell>
+                    <Table.Cell>
+                      <Chip size="sm" variant="soft" color={k.revoked_at ? 'danger' : 'success'}>
+                        {t(k.revoked_at ? 'keys.revoked' : 'keys.active')}
+                      </Chip>
+                    </Table.Cell>
+                    <Table.Cell>
+                      {!k.revoked_at && (
+                        <ConfirmButton size="sm" label={t('keys.revoke')} title={`${t('keys.revoke')} ${k.name}?`} desc={t('keys.revokeConfirm')} onConfirm={() => revoke(k.id)} />
+                      )}
+                    </Table.Cell>
+                  </Table.Row>
+                )}
+              </Table.Body>
+            </Table.Content>
+          </Table.ScrollContainer>
+        </Table>
+      )}
       <IssueKeyModal isOpen={open} onOpenChange={setOpen} onCreated={load} />
     </div>
   )
