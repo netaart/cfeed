@@ -22,7 +22,7 @@ npm run typecheck
 
 ## Deploy
 
-Production runs at <https://cfeed.neta.art> (console at `/dashboard/`) and is deployed by Cloudflare Workers Builds on every push to `main`:
+Deployed by Cloudflare Workers Builds on every push to `main`:
 
 - Build command: `npm run build`
 - Deploy command: `npx wrangler d1 migrations apply cfeed --remote && npx wrangler deploy`
