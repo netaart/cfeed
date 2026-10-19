@@ -51,14 +51,10 @@ export type AppSummary = {
   status: 'active' | 'disabled'
 }
 
-export type FieldDef = { name: string; type: string; required?: boolean; values?: string[] }
-
 export type AppConfig = {
   slug: string
   name: string | null
   allowed_origins: string[]
-  fields: FieldDef[]
-  strict_fields: boolean
   max_files: number | null
   max_file_bytes: number | null
   allowed_mime: string[] | null

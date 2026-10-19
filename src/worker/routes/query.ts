@@ -38,7 +38,7 @@ function scopeApps(auth: Auth, requested: string[]): string[] {
   return [pinned]
 }
 
-// Matches the JSON text produced by `extra -> path`, so "3" finds both 3 and "3", "true" finds true and "true".
+// feedback_extra stores JSON text, so "3" must match both 3 and "3", "true" both true and "true".
 function xCandidates(v: string): string[] {
   const out = [JSON.stringify(v)]
   if (v === 'true' || v === 'false' || v === 'null') out.push(v)
@@ -104,7 +104,7 @@ query.get('/feedback', requireAuth('read'), async (c) => {
     const path = k.slice(2)
     if (!X_PATH.test(path)) fail(400, 'invalid_query', `Invalid extra path "${path}"`)
     const cands = xCandidates(q[k])
-    add(`(extra -> ?) IN (${placeholders(cands.length)})`, `$.${path}`, ...cands)
+    add(`id IN (SELECT feedback_id FROM feedback_extra WHERE path = ? AND value IN (${placeholders(cands.length)}))`, path, ...cands)
   }
 
   if (q.cursor) {

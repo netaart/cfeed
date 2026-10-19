@@ -10,7 +10,7 @@ cfeed is an **anonymous**, general-purpose feedback service on Cloudflare Worker
 | Concept | Description |
 |---|---|
 | **app** | A plain string (e.g. `memos-desktop`) that groups feedback. It is not a credential. Defaults to `default`; unregistered apps are accepted as-is |
-| **App config** (optional) | Registered per app in the console: custom field declarations, origin allowlist, attachment limits, retention, enable/disable. Apps without a config use global defaults |
+| **App config** (optional) | Registered per app in the console: origin allowlist, attachment limits, retention, enable/disable. Apps without a config use global defaults |
 | **API key** `ck_…` | **Only for reading and triaging feedback.** Issued in the console with two attributes: `app` (NULL = all apps) and `scope` (`read` or `write`). Only the hash is stored; the plaintext is shown once |
 | **ADMIN_TOKEN** | Worker secret with full privileges; used to sign in to the console and issue keys |
 
@@ -39,7 +39,7 @@ src/worker/
   lib/auth.ts            # ck_ / ADMIN_TOKEN / signed cookie → Auth
   lib/context.ts         # UA, client hints, cf geo data, ip_hash
   lib/ua.ts              # minimal UA parser (no dependency)
-  lib/fields.ts          # extra validation and field declaration validation
+  lib/extra.ts           # extra parsing/size limit and flattening into feedback_extra
   lib/config.ts          # app config merged with global defaults
   lib/id.ts              # ULID, key generation, sha256 / hmac / constant-time compare
 src/web/                 # admin SPA: React 19 + HeroUI v3 + Tailwind v4, Chinese/English UI
@@ -54,6 +54,7 @@ See [`migrations/0001_init.sql`](migrations/0001_init.sql) for the full schema.
 | Table | Purpose |
 |---|---|
 | `apps` | Optional per-app config, keyed by `slug` |
+| `feedback_extra` | Inverted index over `extra` for `x.<path>` filters (see 3.1) |
 | `api_keys` | Read/write keys |
 | `feedback` | Feedback rows. `app` is plain text with **no foreign key**, so unregistered apps can write |
 | `attachments` | Attachment metadata, cascade-deleted with its feedback |
@@ -70,24 +71,21 @@ Notes:
 
 ### 3.1 Custom fields: `extra`
 
-Unregistered apps may send any JSON object. Registered apps can declare fields in `apps.fields`:
+`extra` is free-form: any JSON object is stored as-is, with no schema, no per-app declarations, and no type checks. The only limit is `MAX_EXTRA_BYTES` (16 KB) serialized.
+
+To make `x.<path>` filters fast for arbitrary keys, every submission is also flattened into `feedback_extra (path, value, feedback_id)`, primary key `(path, value, feedback_id)`, written in the same `DB.batch` as the feedback row and cascade-deleted with it:
+
+- One row per scalar leaf; `value` is the leaf's JSON text (`"1.4.2"`, `3`, `true`, `null`).
+- Paths are dot-joined keys matching `[A-Za-z0-9_]+`, at most 5 segments. Other keys are skipped.
+- Scalar array elements share their parent's path, so `x.tags=ui` means "tags contains ui". Objects or arrays nested inside arrays are not indexed.
+- Values longer than 256 characters and anything past 256 leaves per submission are not indexed (still stored in `extra`, just not filterable).
 
 ```json
-[
-  { "name": "version",  "type": "string",  "required": true },
-  { "name": "plan",     "type": "enum",    "values": ["free", "pro"] },
-  { "name": "screen_w", "type": "number" },
-  { "name": "debug",    "type": "object" }
-]
+{ "version": "1.4.2", "tags": ["sync", "ui"], "device": { "model": "Pixel 8" } }
 ```
+→ `(version, "1.4.2")`, `(tags, "sync")`, `(tags, "ui")`, `(device.model, "Pixel 8")`.
 
-- Supported types: `string | number | boolean | enum | object | array`
-- With `strict_fields = 1`, undeclared fields are rejected.
-- Hard limits for every app: at most `MAX_EXTRA_BYTES` (16 KB) serialized, nesting depth at most 5.
-- For a frequently filtered field, add an index matching the query expression:
-  ```sql
-  CREATE INDEX idx_fb_extra_version ON feedback (app, extra -> '$.version');
-  ```
+Migration `0003` backfills the table from existing rows with the same rules.
 
 ## 4. API
 
@@ -133,9 +131,9 @@ Processing:
 1. Rate-limit by IP hash with `SUBMIT_LIMITER` **before reading the body**, so abusive clients cannot make the Worker buffer large uploads. Over the limit → `429`.
 2. Parse the body and resolve `app` (default `default`). Load its config, falling back to global defaults. A `disabled` app → `403`; this is how a spammed app is shut off.
 3. If the app has `allowed_origins`, check `Origin`. This only stops cross-site submissions from browsers.
-4. Validate fields, `extra`, and attachments (count, size, MIME).
+4. Validate fields, the size of `extra`, and attachments (count, size, MIME).
 5. Write attachments to R2 **in parallel** under `{app}/{feedback_id}/{attachment_id}`. The user-supplied filename is **never** part of the key. R2 failure → `502`.
-6. Insert feedback and attachments in one transaction with `DB.batch([...])`.
+6. Insert the feedback, its `feedback_extra` rows, and attachments in one transaction with `DB.batch([...])`.
 7. If step 6 fails, delete the R2 objects from step 5 and return `500`.
 
 ### 4.2 Query (`Authorization: Bearer ck_… | ADMIN_TOKEN`, or the console cookie)
@@ -164,7 +162,7 @@ List filters:
 | `has_attachments` | `1` or `0` | |
 | `limit` `cursor` | | Default 20, max 100. The cursor is base64 of the last row's `created_at:id` |
 
-`x.<path>` safety: the path must match `^[A-Za-z0-9_]+(\.[A-Za-z0-9_]+){0,4}$`, with at most 5 such filters. The generated SQL is `(extra -> ?) IN (?, …)`; **both path and values are bound parameters**, never interpolated. Because `->` returns JSON text, candidates include both the string and the literal form: `x.n=3` matches `3` and `"3"`, `x.pro=true` matches `true` and `"true"`.
+`x.<path>` safety: the path must match `^[A-Za-z0-9_]+(\.[A-Za-z0-9_]+){0,4}$`, with at most 5 such filters. Each filter becomes `id IN (SELECT feedback_id FROM feedback_extra WHERE path = ? AND value IN (?, …))`, served by the primary key; **both path and values are bound parameters**, never interpolated. Because values are stored as JSON text, candidates include both the string and the literal form: `x.n=3` matches `3` and `"3"`, `x.pro=true` matches `true` and `"true"`. Multiple filters are ANDed.
 
 **Attachment download safety**: anything other than `image/png|jpeg|webp|gif` is served as `application/octet-stream` with `Content-Disposition: attachment`. Every response carries `X-Content-Type-Options: nosniff` and `Content-Security-Policy: default-src 'none'; sandbox`. SVG and HTML are not in the default allowlist, so stored XSS cannot run on the console's origin.
 
@@ -189,7 +187,7 @@ List filters:
 | Method | Path | Description |
 |---|---|---|
 | GET | `/api/admin/apps` | Registered configs |
-| PUT | `/api/admin/apps/:slug` | Create or replace: name, origins, fields, strict, limits, retention, status |
+| PUT | `/api/admin/apps/:slug` | Create or replace: name, origins, limits, retention, status |
 | DELETE | `/api/admin/apps/:slug` | Remove the config only (defaults apply again); **feedback is kept** |
 
 Bulk-deleting an app's feedback is planned for P2 (`DELETE /api/admin/feedback?app=…`).
@@ -200,7 +198,7 @@ A React SPA built with [HeroUI v3](https://heroui.com) (React Aria + Tailwind v4
 
 - Sign in with ADMIN_TOKEN.
 - **Feedback** (`#feedback`): stat cards; filter by app / status / type / content / extra (`version=1.4.2 plan=pro`); cursor pagination; a detail view with content, attachment previews, extra, and request context, plus resolved/spam marks, tags, note, and delete.
-- **Apps** (`#apps`): every app seen with counts; create or edit configs (field declarations as JSON, origin allowlist, attachment limits, retention, enable/disable); integration examples.
+- **Apps** (`#apps`): every app seen with counts; create or edit configs (origin allowlist, attachment limits, retention, enable/disable); integration examples.
 - **API Keys** (`#keys`): issue (app scope and read/write; plaintext shown once) and revoke.
 
 For stronger protection, put Cloudflare Access in front of the Worker domain (no code changes).

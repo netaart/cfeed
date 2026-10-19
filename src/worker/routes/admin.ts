@@ -3,7 +3,6 @@ import { deleteCookie, setSignedCookie } from 'hono/cookie'
 import type { AppEnv } from '../types'
 import { ADMIN_COOKIE, adminToken, requireAuth } from '../lib/auth'
 import { APP_SLUG, appRowToJson, type AppRow } from '../lib/config'
-import { validateFieldDefs } from '../lib/fields'
 import { fail } from '../lib/http'
 import { hmacHex, newApiKey, safeEqual, sha256Hex, ulid } from '../lib/id'
 
@@ -113,13 +112,11 @@ admin.put('/apps/:slug', async (c) => {
     mime = b.allowed_mime
   }
 
-  const fields = validateFieldDefs(b.fields ?? [])
   const now = Date.now()
   const row = await c.env.DB.prepare(
-    `INSERT INTO apps (slug, name, allowed_origins, fields, strict_fields, max_files, max_file_bytes, allowed_mime, retention_days, status, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-     ON CONFLICT(slug) DO UPDATE SET name = excluded.name, allowed_origins = excluded.allowed_origins, fields = excluded.fields,
-       strict_fields = excluded.strict_fields, max_files = excluded.max_files, max_file_bytes = excluded.max_file_bytes,
+    `INSERT INTO apps (slug, name, allowed_origins, max_files, max_file_bytes, allowed_mime, retention_days, status, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(slug) DO UPDATE SET name = excluded.name, allowed_origins = excluded.allowed_origins, max_files = excluded.max_files, max_file_bytes = excluded.max_file_bytes,
        allowed_mime = excluded.allowed_mime, retention_days = excluded.retention_days, status = excluded.status, updated_at = excluded.updated_at
      RETURNING *`
   )
@@ -127,8 +124,6 @@ admin.put('/apps/:slug', async (c) => {
       slug,
       name,
       JSON.stringify([...new Set(normOrigins)]),
-      JSON.stringify(fields),
-      b.strict_fields ? 1 : 0,
       optInt(b.max_files, 'max_files', 0, 20),
       optInt(b.max_file_bytes, 'max_file_bytes', 1, MAX_UPLOAD_BYTES),
       mime ? JSON.stringify(mime) : null,

@@ -4,7 +4,7 @@ Anonymous, general-purpose feedback service on Cloudflare Workers + D1 + R2, wit
 
 - **Anonymous submit**: `POST /api/v1/feedback` needs no key, has open CORS, and accepts optional attachments.
 - **Server-side context**: parsed UA, client hints, country/city/timezone/ASN, language, referer, hashed IP.
-- **Custom fields**: free-form `extra` JSON per app, optionally validated by a per-app field schema, filterable via `x.<path>=value`.
+- **Custom fields**: free-form `extra` JSON, no schema; every leaf is indexed so `x.<path>=value` filters stay fast.
 - **Keyed reads**: `ck_…` keys issued in the console, scoped to one app or all, read or write.
 - **Admin console**: HeroUI v3, Chinese and English UI, dark mode.
 

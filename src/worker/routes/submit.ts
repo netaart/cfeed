@@ -3,7 +3,7 @@ import { cors } from 'hono/cors'
 import type { AppEnv } from '../types'
 import { APP_SLUG, loadAppConfig, mimeAllowed } from '../lib/config'
 import { requestContext } from '../lib/context'
-import { validateExtra } from '../lib/fields'
+import { extraIndexEntries, parseExtra } from '../lib/extra'
 import { ApiError, fail, intVar } from '../lib/http'
 import { hmacHex, ulid } from '../lib/id'
 
@@ -83,7 +83,8 @@ submit.post('/feedback', async (c) => {
     if (!Number.isInteger(rating) || rating < 1 || rating > 5) fail(400, 'invalid_field', 'rating must be an integer 1-5')
   }
 
-  const extra = validateExtra(input.extra, cfg.fields, cfg.strictFields, intVar(env.MAX_EXTRA_BYTES, 16384))
+  const extra = parseExtra(input.extra, intVar(env.MAX_EXTRA_BYTES, 16384))
+  const extraIndex = extraIndexEntries(extra)
 
   if (files.length > cfg.maxFiles) fail(400, 'too_many_files', `At most ${cfg.maxFiles} files allowed`)
   for (const f of files) {
@@ -143,6 +144,13 @@ submit.post('/feedback', async (c) => {
     env.DB.prepare(`INSERT INTO feedback (${cols.join(', ')}) VALUES (${cols.map(() => '?').join(', ')})`).bind(
       ...Object.values(row)
     ),
+    ...(extraIndex.length
+      ? [
+          env.DB.prepare(
+            "INSERT OR IGNORE INTO feedback_extra (path, value, feedback_id) SELECT json_extract(j.value, '$[0]'), json_extract(j.value, '$[1]'), ? FROM json_each(?) j"
+          ).bind(id, JSON.stringify(extraIndex))
+        ]
+      : []),
     ...attachments.map((a) =>
       env.DB.prepare(
         'INSERT INTO attachments (id, feedback_id, r2_key, filename, content_type, size, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'

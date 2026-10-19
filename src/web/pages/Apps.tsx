@@ -143,8 +143,6 @@ type Form = {
   name: string
   active: boolean
   origins: string
-  fields: string
-  strict: boolean
   maxFiles: string
   maxFileMb: string
   mime: string
@@ -157,8 +155,6 @@ function toForm(slug: string, c: AppConfig | null): Form {
     name: c?.name ?? '',
     active: (c?.status ?? 'active') === 'active',
     origins: c?.allowed_origins.join('\n') ?? '',
-    fields: c?.fields.length ? JSON.stringify(c.fields, null, 2) : '[]',
-    strict: c?.strict_fields ?? false,
     maxFiles: c?.max_files?.toString() ?? '',
     maxFileMb: c?.max_file_bytes ? String(+(c.max_file_bytes / 1024 / 1024).toFixed(2)) : '',
     mime: c?.allowed_mime?.join(', ') ?? '',
@@ -187,13 +183,6 @@ function AppConfigModal({
   }, [editing])
 
   const save = async () => {
-    let fields: unknown
-    try {
-      fields = JSON.parse(form.fields || '[]')
-    } catch {
-      toast.danger(t('apps.invalidJson'))
-      return
-    }
     const num = (v: string) => (v.trim() === '' ? null : Number(v))
     const mb = num(form.maxFileMb)
     setPending(true)
@@ -204,8 +193,6 @@ function AppConfigModal({
           name: form.name.trim() || null,
           status: form.active ? 'active' : 'disabled',
           allowed_origins: form.origins.split(/\s+/).filter(Boolean),
-          fields,
-          strict_fields: form.strict,
           max_files: num(form.maxFiles),
           max_file_bytes: mb === null ? null : Math.round(mb * 1024 * 1024),
           allowed_mime: form.mime.trim() ? form.mime.split(/[,\s]+/).filter(Boolean) : null,
@@ -281,19 +268,6 @@ function AppConfigModal({
                 <TextArea rows={2} className="font-mono text-xs" placeholder="https://example.com" />
                 <Description>{t('apps.originsHint')}</Description>
               </TextField>
-              <TextField value={form.fields} onChange={(fields) => set({ fields })}>
-                <Label>{t('apps.fields')}</Label>
-                <TextArea rows={6} className="font-mono text-xs" />
-                <Description>{t('apps.fieldsHint')}</Description>
-              </TextField>
-              <Switch isSelected={form.strict} onChange={(strict) => set({ strict })}>
-                <Switch.Content>
-                  <Switch.Control>
-                    <Switch.Thumb />
-                  </Switch.Control>
-                  {t('apps.strict')}
-                </Switch.Content>
-              </Switch>
               <div className="grid gap-4 sm:grid-cols-3">
                 <TextField value={form.maxFiles} onChange={(maxFiles) => set({ maxFiles })}>
                   <Label>{t('apps.maxFiles')}</Label>
