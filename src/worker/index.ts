@@ -8,6 +8,8 @@ import submit from './routes/submit'
 
 const app = new Hono<AppEnv>()
 
+app.get('/', (c) => c.json({ service: 'cfeed', repository: 'https://github.com/netaart/cfeed' }))
+
 app.route('/api/v1', submit)
 app.route('/api/v1', query)
 app.route('/api/admin', admin)

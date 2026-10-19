@@ -16,13 +16,13 @@ See [DESIGN.md](DESIGN.md) for the full API and data model.
 npm install
 cp .dev.vars.example .dev.vars   # ADMIN_TOKEN, IP_SALT
 npm run db:migrate
-npm run dev                      # console at http://localhost:5173
+npm run dev                      # console at http://localhost:5173/dashboard/
 npm run typecheck
 ```
 
 ## Deploy
 
-Production runs at <https://cfeed.neta.art> and is deployed by Cloudflare Workers Builds on every push to `main`:
+Production runs at <https://cfeed.neta.art> (console at `/dashboard/`) and is deployed by Cloudflare Workers Builds on every push to `main`:
 
 - Build command: `npm run build`
 - Deploy command: `npx wrangler d1 migrations apply cfeed --remote && npx wrangler deploy`

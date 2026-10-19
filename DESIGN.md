@@ -22,17 +22,17 @@ Anyone ──POST /api/v1/feedback (app=xxx)──▶ Worker (Hono)
                                            ├─ R2 put attachments
                                            └─ D1 batch insert
 Scripts / backends ──Bearer ck_… | ADMIN_TOKEN──▶ /api/v1/*      query / triage / download
-Admin browser ──cookie──▶ /  (React + HeroUI SPA, served by Workers Static Assets)
+Admin browser ──cookie──▶ /dashboard/  (React + HeroUI SPA, served by Workers Static Assets)
                         └──▶ /api/admin/*  login, key issuance, app config
 ```
 
-`assets.run_worker_first: ["/api/*"]` in `wrangler.jsonc` routes API requests to the Worker; every other path falls through to the SPA (`not_found_handling: single-page-application`).
+The SPA is built into `dashboard/` (`dashboard/index.html`, assets under `dashboard/assets/`), so Static Assets only matches `/dashboard/…` and `/favicon.ico`. Everything else, including `/`, reaches the Worker: `/` returns a small JSON pointer to the repository and unknown paths return a JSON 404, so the console is not exposed at the root. `assets.run_worker_first: ["/api/*"]` keeps API requests off the asset lookup.
 
 Layout:
 
 ```
 src/worker/
-  index.ts               # route mounting, uniform error format
+  index.ts               # route mounting, `/` info, uniform error format
   routes/submit.ts       # POST /api/v1/feedback (anonymous)
   routes/query.ts        # /api/v1/feedback*, /attachments/:id, /stats, /apps
   routes/admin.ts        # /api/admin/login|logout|me|keys*|apps*
@@ -43,6 +43,7 @@ src/worker/
   lib/config.ts          # app config merged with global defaults
   lib/id.ts              # ULID, key generation, sha256 / hmac / constant-time compare
 src/web/                 # admin SPA: React 19 + HeroUI v3 + Tailwind v4, Chinese/English UI
+dashboard/index.html     # SPA entry, served at /dashboard/
 migrations/0001_init.sql
 ```
 
@@ -193,7 +194,7 @@ List filters:
 
 Bulk-deleting an app's feedback is planned for P2 (`DELETE /api/admin/feedback?app=…`).
 
-## 5. Admin console `/`
+## 5. Admin console `/dashboard/`
 
 A React SPA built with [HeroUI v3](https://heroui.com) (React Aria + Tailwind v4). The UI is available in Chinese and English and follows the system dark mode. It has no auth logic of its own and relies entirely on the cookie set by `/api/admin/login`, which is also why `<img src="/api/v1/attachments/…">` works without extra handling.
 
@@ -252,7 +253,7 @@ Known tradeoff: anyone can write under any app name, including made-up ones. Tha
 ```bash
 cp .dev.vars.example .dev.vars        # ADMIN_TOKEN=… IP_SALT=…
 npm run db:migrate
-npm run dev                           # console at http://localhost:5173
+npm run dev                           # console at http://localhost:5173/dashboard/
 npm run typecheck
 ```
 
