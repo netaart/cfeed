@@ -3,18 +3,13 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { useT } from './i18n'
 import type { Status } from './types'
 
-const STATUS_COLOR: Record<Status, 'accent' | 'warning' | 'success' | 'default' | 'danger'> = {
-  open: 'accent',
-  in_progress: 'warning',
-  resolved: 'success',
-  closed: 'default',
-  spam: 'danger'
-}
+const MARK_COLOR = { resolved: 'success', spam: 'danger' } as const
 
 export function StatusChip({ status }: { status: Status }) {
   const { t } = useT()
+  if (status === 'open') return null
   return (
-    <Chip size="sm" variant="soft" color={STATUS_COLOR[status]} className="whitespace-nowrap">
+    <Chip size="sm" variant="soft" color={MARK_COLOR[status]} className="whitespace-nowrap">
       {t(`status.${status}`)}
     </Chip>
   )

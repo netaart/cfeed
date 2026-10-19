@@ -1,5 +1,7 @@
-export type Status = 'open' | 'in_progress' | 'resolved' | 'closed' | 'spam'
-export const STATUSES: Status[] = ['open', 'in_progress', 'resolved', 'closed', 'spam']
+export type Status = 'open' | 'resolved' | 'spam'
+export type Mark = Exclude<Status, 'open'>
+export const STATUSES: Status[] = ['open', 'resolved', 'spam']
+export const MARKS: Mark[] = ['resolved', 'spam']
 
 export type Feedback = {
   id: string

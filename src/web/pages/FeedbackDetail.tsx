@@ -1,11 +1,11 @@
 import { TrashBin } from '@gravity-ui/icons'
-import { Alert, Button, Chip, Input, Label, Modal, Spinner, TextArea, TextField, toast } from '@heroui/react'
+import { Alert, Button, Chip, Description, Input, Label, Modal, Spinner, TextArea, TextField, ToggleButton, ToggleButtonGroup, toast } from '@heroui/react'
 import { useEffect, useState } from 'react'
 import { api, errorMessage } from '../api'
 import { fmtBytes, fmtTime, join } from '../format'
 import { useT } from '../i18n'
-import { STATUSES, type Feedback, type FeedbackDetail } from '../types'
-import { CodeBlock, ConfirmButton, KV, SimpleSelect, StatusChip, useIsMobile } from '../ui'
+import { MARKS, type Feedback, type FeedbackDetail, type Status } from '../types'
+import { CodeBlock, ConfirmButton, KV, StatusChip, useIsMobile } from '../ui'
 
 type Props = {
   id: string | null
@@ -18,7 +18,7 @@ export function FeedbackDetailModal({ id, onClose, onChanged, onDeleted }: Props
   const { t, lang } = useT()
   const [fb, setFb] = useState<FeedbackDetail | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [status, setStatus] = useState('open')
+  const [status, setStatus] = useState<Status>('open')
   const [tags, setTags] = useState('')
   const [note, setNote] = useState('')
   const [saving, setSaving] = useState(false)
@@ -177,18 +177,26 @@ export function FeedbackDetailModal({ id, onClose, onChanged, onDeleted }: Props
 
                 <section className="flex flex-col gap-3 rounded-2xl border border-separator p-3 sm:p-4">
                   <h3 className="text-sm font-medium">{t('fb.manage')}</h3>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <SimpleSelect
-                      label={t('fb.status')}
-                      value={status}
-                      onChange={setStatus}
-                      options={STATUSES.map((s) => ({ id: s, label: t(`status.${s}`) }))}
-                    />
-                    <TextField value={tags} onChange={setTags}>
-                      <Label>{t('fb.tags')}</Label>
-                      <Input placeholder={t('fb.tagsHint')} />
-                    </TextField>
+                  <div className="flex flex-col gap-1.5">
+                    <Label>{t('fb.mark')}</Label>
+                    <ToggleButtonGroup
+                      selectionMode="single"
+                      selectedKeys={status === 'open' ? [] : [status]}
+                      onSelectionChange={(keys) => setStatus(([...keys][0] as Status | undefined) ?? 'open')}
+                      isDetached
+                    >
+                      {MARKS.map((m) => (
+                        <ToggleButton key={m} id={m}>
+                          {t(`status.${m}`)}
+                        </ToggleButton>
+                      ))}
+                    </ToggleButtonGroup>
+                    <Description>{t('fb.markHint')}</Description>
                   </div>
+                  <TextField value={tags} onChange={setTags}>
+                    <Label>{t('fb.tags')}</Label>
+                    <Input placeholder={t('fb.tagsHint')} />
+                  </TextField>
                   <TextField value={note} onChange={setNote}>
                     <Label>{t('fb.note')}</Label>
                     <TextArea rows={3} />

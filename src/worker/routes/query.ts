@@ -5,7 +5,7 @@ import { fail } from '../lib/http'
 
 const query = new Hono<AppEnv>()
 
-const STATUSES = ['open', 'in_progress', 'resolved', 'closed', 'spam'] as const
+const STATUSES = ['open', 'resolved', 'spam'] as const
 const LIST_FILTERS = ['status', 'type', 'user_id', 'country', 'ua_os', 'ua_device'] as const
 const X_PATH = /^[A-Za-z0-9_]+(\.[A-Za-z0-9_]+){0,4}$/
 const MAX_X_FILTERS = 5

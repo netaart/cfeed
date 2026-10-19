@@ -64,7 +64,7 @@ Notes:
 - `feedback` columns fall into three groups:
   1. **Client-writable**: `app type content contact rating user_id page_url app_version extra`
   2. **Server-captured**: `ua* client_hints ip_hash country region city timezone asn colo language referer origin`. Same-named fields sent by the client are ignored.
-  3. **Triage**: `status tags note`, writable only with a `write` key or ADMIN_TOKEN.
+  3. **Triage**: `status tags note`, writable only with a `write` key or ADMIN_TOKEN. `status` is `open` (unmarked, the default), `resolved`, or `spam`; the console shows only the two marks.
 - Raw IPs are never stored, only `HMAC-SHA256(IP_SALT, ip)`. It is used for rate limiting and to spot repeated submissions from the same client.
 - Every index starts with `app`.
 
@@ -149,7 +149,7 @@ A key scoped to one app is **forced** into that app; requesting any other `app` 
 | GET | `/api/v1/attachments/:id` | read | Stream an attachment from R2 |
 | GET | `/api/v1/stats` | read | Counts by status and type, plus daily counts for the last 30 days |
 | GET | `/api/v1/apps` | read | Apps seen so far, with feedback count, latest time, and whether a config exists |
-| PATCH | `/api/v1/feedback/:id` | write | Update `status / tags / note` |
+| PATCH | `/api/v1/feedback/:id` | write | Update `status` (`open` / `resolved` / `spam`), `tags`, `note` |
 | DELETE | `/api/v1/feedback/:id` | write | Delete, including its R2 attachments |
 
 List filters:
@@ -157,7 +157,7 @@ List filters:
 | Parameter | Example | Notes |
 |---|---|---|
 | `app` | `app=memos-desktop,blog` | Comma-separated |
-| `status` `type` `user_id` `country` `ua_os` `ua_device` | `status=open,in_progress` | Comma-separated. `spam` is hidden unless `status` is given |
+| `status` `type` `user_id` `country` `ua_os` `ua_device` | `status=open,resolved` | Comma-separated. `spam` is hidden unless `status` is given |
 | `from` `to` | `2026-10-01` or a millisecond timestamp | Filters `created_at`; a date-only `to` is inclusive |
 | `q` | `crash` | `LIKE` match on `content` |
 | `x.<path>` | `x.version=1.4.2`, `x.device.model=iPhone15` | Filters on `extra` |
@@ -199,7 +199,7 @@ Bulk-deleting an app's feedback is planned for P2 (`DELETE /api/admin/feedback?a
 A React SPA built with [HeroUI v3](https://heroui.com) (React Aria + Tailwind v4). The UI is available in Chinese and English and follows the system dark mode. It has no auth logic of its own and relies entirely on the cookie set by `/api/admin/login`, which is also why `<img src="/api/v1/attachments/…">` works without extra handling.
 
 - Sign in with ADMIN_TOKEN.
-- **Feedback** (`#feedback`): stat cards; filter by app / status / type / content / extra (`version=1.4.2 plan=pro`); cursor pagination; a detail view with content, attachment previews, extra, and request context, plus status, tags, note, and delete.
+- **Feedback** (`#feedback`): stat cards; filter by app / status / type / content / extra (`version=1.4.2 plan=pro`); cursor pagination; a detail view with content, attachment previews, extra, and request context, plus resolved/spam marks, tags, note, and delete.
 - **Apps** (`#apps`): every app seen with counts; create or edit configs (field declarations as JSON, origin allowlist, attachment limits, retention, enable/disable); integration examples.
 - **API Keys** (`#keys`): issue (app scope and read/write; plaintext shown once) and revoke.
 

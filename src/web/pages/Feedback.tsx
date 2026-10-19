@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { api, errorMessage } from '../api'
 import { fmtShortTime, fmtTime, join } from '../format'
 import { useT } from '../i18n'
-import { STATUSES, type AppSummary, type Feedback, type Stats } from '../types'
+import { MARKS, STATUSES, type AppSummary, type Feedback, type Stats } from '../types'
 import { SimpleSelect, StatusChip, useIsMobile } from '../ui'
 import { FeedbackDetailModal } from './FeedbackDetail'
 
@@ -95,7 +95,7 @@ export function FeedbackPage() {
 
   const statCards = [
     { label: t('fb.total'), value: stats?.total },
-    ...(['open', 'in_progress', 'resolved', 'spam'] as const).map((s) => ({ label: t(`status.${s}`), value: stats?.by_status[s] ?? 0 }))
+    ...MARKS.map((s) => ({ label: t(`status.${s}`), value: stats?.by_status[s] ?? 0 }))
   ]
 
   const activeFilters = [filters.app !== ALL, filters.status !== ALL, filters.type !== ALL, !!filters.x].filter(Boolean).length
@@ -156,9 +156,9 @@ export function FeedbackPage() {
 
   return (
     <div className="flex flex-col gap-4 sm:gap-5">
-      <div className="no-scrollbar -mx-4 flex snap-x scroll-px-4 gap-2 overflow-x-auto px-4 sm:mx-0 sm:grid sm:grid-cols-5 sm:gap-3 sm:overflow-visible sm:px-0">
+      <div className="grid grid-cols-3 gap-2 sm:gap-3">
         {statCards.map((c) => (
-          <Card key={c.label} className="min-w-[6.5rem] shrink-0 snap-start gap-0.5 p-3 sm:min-w-0 sm:gap-1 sm:p-4">
+          <Card key={c.label} className="gap-0.5 p-3 sm:gap-1 sm:p-4">
             <div className="text-xs whitespace-nowrap text-muted">{c.label}</div>
             <div className="text-xl font-semibold tabular-nums sm:text-2xl">{c.value ?? '—'}</div>
           </Card>
@@ -322,7 +322,7 @@ export function FeedbackPage() {
                       <span className="font-mono text-xs">{fb.app}</span>
                     </Table.Cell>
                     <Table.Cell>
-                      <StatusChip status={fb.status} />
+                      {fb.status === 'open' ? <span className="text-muted">—</span> : <StatusChip status={fb.status} />}
                     </Table.Cell>
                     <Table.Cell>
                       <div className="text-sm">{join(fb.ua_os, fb.ua_browser) || '—'}</div>
