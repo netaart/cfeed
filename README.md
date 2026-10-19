@@ -7,6 +7,7 @@ Anonymous, general-purpose feedback service on Cloudflare Workers + D1 + R2, wit
 - **Custom fields**: free-form `extra` JSON, no schema; every leaf is indexed so `x.<path>=value` filters stay fast.
 - **Keyed reads**: `ck_…` keys issued in the console, scoped to one app or all, read or write.
 - **Admin console**: HeroUI v3, Chinese and English UI, dark mode.
+- **Agent skill**: `GET /skills.md` serves an [Agent Skill](src/worker/skill.md) for the read/triage API; hand an agent that URL plus a `ck_…` key.
 
 See [DESIGN.md](DESIGN.md) for the full API and data model.
 

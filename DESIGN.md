@@ -32,7 +32,8 @@ Layout:
 
 ```
 src/worker/
-  index.ts               # route mounting, `/` info, uniform error format
+  index.ts               # route mounting, `/` info, `/skills.md`, uniform error format
+  skill.md               # Agent Skill for the read/triage API, served at /skills.md
   routes/submit.ts       # POST /api/v1/feedback (anonymous)
   routes/query.ts        # /api/v1/feedback*, /attachments/:id, /stats, /apps
   routes/admin.ts        # /api/admin/login|logout|me|keys*|apps*
@@ -188,6 +189,10 @@ List filters:
 | GET | `/api/admin/apps` | Registered configs |
 | PUT | `/api/admin/apps/:slug` | Create or replace: `name`, `allowed_domains` (hostnames or `*.host`; full URLs are reduced to their host, IDNs to punycode), `max_files`, `max_file_bytes`, `allowed_mime` (exact types, `image/*`-style wildcards, or `*/*` to accept any type without checking; `null` = global default), `status` |
 | DELETE | `/api/admin/apps/:slug` | Remove the config only (defaults apply again); **feedback is kept** |
+
+### 4.4 Agent skill `GET /skills.md`
+
+Public, no auth. Serves `src/worker/skill.md`, an [Agent Skill](https://agentskills.io) (`name` + `description` frontmatter) covering list/filter, detail, attachments, stats, apps, `PATCH` and `DELETE`, with `{{BASE_URL}}` replaced by the request origin. The console shows the URL next to every newly issued key, so an agent needs only those two values. Keep it in sync when the query API changes.
 
 Bulk-deleting an app's feedback is planned for P2 (`DELETE /api/admin/feedback?app=…`).
 

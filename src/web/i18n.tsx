@@ -111,7 +111,8 @@ const zh = {
   'keys.revoke': '吊销',
   'keys.revokeConfirm': '吊销后使用该 key 的请求会立即失败。',
   'keys.secretOnce': '请立即复制保存，此 key 只显示这一次。',
-  'keys.usage': '用法'
+  'keys.usage': '用法',
+  'keys.agent': '交给 Agent：把下面两行发给它即可'
 }
 
 type Key = keyof typeof zh
@@ -227,7 +228,8 @@ const en: Record<Key, string> = {
   'keys.revoke': 'Revoke',
   'keys.revokeConfirm': 'Requests using this key will fail immediately.',
   'keys.secretOnce': 'Copy it now — this key is shown only once.',
-  'keys.usage': 'Usage'
+  'keys.usage': 'Usage',
+  'keys.agent': 'For an agent: send it these two lines'
 }
 
 export type Lang = 'zh' | 'en'

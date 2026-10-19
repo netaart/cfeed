@@ -192,6 +192,10 @@ function IssueKeyModal({ isOpen, onOpenChange, onCreated }: { isOpen: boolean; o
                   <div className="mb-1 text-xs text-muted">{t('keys.usage')}</div>
                   <CodeBlock>{`curl -H 'Authorization: Bearer ${created.key}' \\\n  '${origin}/api/v1/feedback?status=open&limit=20'`}</CodeBlock>
                 </div>
+                <div>
+                  <div className="mb-1 text-xs text-muted">{t('keys.agent')}</div>
+                  <CodeBlock>{`Skill: ${origin}/skills.md\nCFEED_KEY=${created.key}`}</CodeBlock>
+                </div>
               </div>
             ) : (
               <form

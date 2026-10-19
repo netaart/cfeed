@@ -5,10 +5,18 @@ import { ApiError } from './lib/http'
 import admin from './routes/admin'
 import query from './routes/query'
 import submit from './routes/submit'
+import skill from './skill.md?raw'
 
 const app = new Hono<AppEnv>()
 
 app.get('/', (c) => c.json({ service: 'cfeed', repository: 'https://github.com/netaart/cfeed' }))
+
+app.get('/skills.md', (c) =>
+  c.body(skill.replaceAll('{{BASE_URL}}', new URL(c.req.url).origin), 200, {
+    'content-type': 'text/markdown; charset=utf-8',
+    'cache-control': 'public, max-age=300'
+  })
+)
 
 app.route('/api/v1', submit)
 app.route('/api/v1', query)
