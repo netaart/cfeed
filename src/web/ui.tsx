@@ -1,0 +1,116 @@
+import { AlertDialog, Button, Chip, Label, ListBox, Select } from '@heroui/react'
+import type { ReactNode } from 'react'
+import { useT } from './i18n'
+import type { Status } from './types'
+
+const STATUS_COLOR: Record<Status, 'accent' | 'warning' | 'success' | 'default' | 'danger'> = {
+  open: 'accent',
+  in_progress: 'warning',
+  resolved: 'success',
+  closed: 'default',
+  spam: 'danger'
+}
+
+export function StatusChip({ status }: { status: Status }) {
+  const { t } = useT()
+  return (
+    <Chip size="sm" variant="soft" color={STATUS_COLOR[status]} className="whitespace-nowrap">
+      {t(`status.${status}`)}
+    </Chip>
+  )
+}
+
+export function KV({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="min-w-0">
+      <dt className="text-xs text-muted">{label}</dt>
+      <dd className="mt-0.5 break-words text-sm">{children ?? '—'}</dd>
+    </div>
+  )
+}
+
+export function PageHeader({ title, desc, actions }: { title: string; desc?: string; actions?: ReactNode }) {
+  return (
+    <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+      <div>
+        <h2 className="text-xl font-semibold">{title}</h2>
+        {desc && <p className="mt-1 max-w-2xl text-sm text-muted">{desc}</p>}
+      </div>
+      {actions && <div className="flex gap-2">{actions}</div>}
+    </div>
+  )
+}
+
+export function CodeBlock({ children }: { children: string }) {
+  return <pre className="overflow-x-auto rounded-xl bg-default p-3 font-mono text-xs leading-relaxed">{children}</pre>
+}
+
+export type Option = { id: string; label: string }
+
+export function SimpleSelect(props: {
+  label: string
+  value: string
+  onChange: (v: string) => void
+  options: Option[]
+  className?: string
+}) {
+  return (
+    <Select className={props.className} value={props.value} onChange={(v) => v !== null && props.onChange(String(v))}>
+      <Label>{props.label}</Label>
+      <Select.Trigger>
+        <Select.Value />
+        <Select.Indicator />
+      </Select.Trigger>
+      <Select.Popover>
+        <ListBox>
+          {props.options.map((o) => (
+            <ListBox.Item key={o.id} id={o.id} textValue={o.label}>
+              {o.label}
+              <ListBox.ItemIndicator />
+            </ListBox.Item>
+          ))}
+        </ListBox>
+      </Select.Popover>
+    </Select>
+  )
+}
+
+export function ConfirmButton(props: {
+  label: ReactNode
+  title: string
+  desc: string
+  onConfirm: () => void
+  size?: 'sm' | 'md'
+  ariaLabel?: string
+  iconOnly?: boolean
+}) {
+  const { t } = useT()
+  return (
+    <AlertDialog>
+      <Button size={props.size ?? 'md'} variant="danger-soft" isIconOnly={props.iconOnly} aria-label={props.ariaLabel}>
+        {props.label}
+      </Button>
+      <AlertDialog.Backdrop>
+        <AlertDialog.Container>
+          <AlertDialog.Dialog className="sm:max-w-[400px]">
+            <AlertDialog.Header>
+              <AlertDialog.Icon status="danger" />
+              <AlertDialog.Heading>{props.title}</AlertDialog.Heading>
+            </AlertDialog.Header>
+            <AlertDialog.Body>
+              <p>{props.desc}</p>
+            </AlertDialog.Body>
+            <AlertDialog.Footer>
+              <Button slot="close" variant="tertiary">
+                {t('action.cancel')}
+              </Button>
+              <Button slot="close" variant="danger" onPress={props.onConfirm}>
+                {t('action.confirm')}
+              </Button>
+            </AlertDialog.Footer>
+          </AlertDialog.Dialog>
+        </AlertDialog.Container>
+      </AlertDialog.Backdrop>
+    </AlertDialog>
+  )
+}

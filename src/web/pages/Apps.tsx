@@ -1,0 +1,299 @@
+import { Gear, Plus } from '@gravity-ui/icons'
+import { Button, Card, Chip, Description, Input, Label, Modal, Switch, Table, TextArea, TextField, toast } from '@heroui/react'
+import { useEffect, useState } from 'react'
+import { api, errorMessage } from '../api'
+import { fmtTime } from '../format'
+import { useT } from '../i18n'
+import type { AppConfig, AppSummary } from '../types'
+import { CodeBlock, ConfirmButton, PageHeader } from '../ui'
+
+const SLUG = /^[a-z0-9][a-z0-9_-]{0,63}$/
+
+export function AppsPage() {
+  const { t, lang } = useT()
+  const [apps, setApps] = useState<AppSummary[]>([])
+  const [configs, setConfigs] = useState<AppConfig[]>([])
+  const [editing, setEditing] = useState<{ slug: string; config: AppConfig | null } | null>(null)
+
+  const load = () => {
+    api<{ items: AppSummary[] }>('/api/v1/apps').then((r) => setApps(r.items), (e) => toast.danger(errorMessage(e)))
+    api<{ items: AppConfig[] }>('/api/admin/apps').then((r) => setConfigs(r.items), () => {})
+  }
+  useEffect(load, [])
+
+  const edit = (slug: string) => setEditing({ slug, config: configs.find((c) => c.slug === slug) ?? null })
+
+  return (
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        title={t('apps.title')}
+        desc={t('apps.desc')}
+        actions={
+          <Button onPress={() => setEditing({ slug: '', config: null })}>
+            <Plus />
+            {t('apps.new')}
+          </Button>
+        }
+      />
+
+      <Table>
+        <Table.ScrollContainer>
+          <Table.Content aria-label={t('apps.title')} className="min-w-[720px]">
+            <Table.Header>
+              <Table.Column isRowHeader>{t('fb.app')}</Table.Column>
+              <Table.Column>{t('apps.count')}</Table.Column>
+              <Table.Column>{t('apps.last')}</Table.Column>
+              <Table.Column>{t('apps.config')}</Table.Column>
+              <Table.Column> </Table.Column>
+            </Table.Header>
+            <Table.Body items={apps.map((a) => ({ ...a, id: a.app }))} renderEmptyState={() => <div className="py-12 text-center text-sm text-muted">{t('common.none')}</div>}>
+              {(a) => (
+                <Table.Row id={a.app}>
+                  <Table.Cell>
+                    <div className="font-mono text-sm">{a.app}</div>
+                    {a.name && <div className="text-xs text-muted">{a.name}</div>}
+                  </Table.Cell>
+                  <Table.Cell>
+                    <span className="tabular-nums">{a.count}</span>
+                  </Table.Cell>
+                  <Table.Cell>
+                    <span className="text-sm text-muted">{fmtTime(a.last_at, lang)}</span>
+                  </Table.Cell>
+                  <Table.Cell>
+                    {a.status === 'disabled' ? (
+                      <Chip size="sm" variant="soft" color="danger">
+                        {t('apps.disabled')}
+                      </Chip>
+                    ) : (
+                      <Chip size="sm" variant="soft" color={a.registered ? 'accent' : 'default'}>
+                        {t(a.registered ? 'apps.registered' : 'apps.unregistered')}
+                      </Chip>
+                    )}
+                  </Table.Cell>
+                  <Table.Cell>
+                    <Button size="sm" variant="tertiary" onPress={() => edit(a.app)}>
+                      <Gear />
+                      {t('apps.config')}
+                    </Button>
+                  </Table.Cell>
+                </Table.Row>
+              )}
+            </Table.Body>
+          </Table.Content>
+        </Table.ScrollContainer>
+      </Table>
+
+      <Card>
+        <Card.Header>
+          <Card.Title>{t('apps.usage')}</Card.Title>
+          <Card.Description>{t('apps.usageDesc')}</Card.Description>
+        </Card.Header>
+        <Card.Content className="flex flex-col gap-3">
+          <CodeBlock>{`curl -X POST ${location.origin}/api/v1/feedback \\
+  -H 'content-type: application/json' \\
+  -d '{"app":"my-app","content":"Great app!","extra":{"version":"1.0.0"}}'`}</CodeBlock>
+          <CodeBlock>{`curl -X POST ${location.origin}/api/v1/feedback \\
+  -F app=my-app -F type=bug -F content='Save button does nothing' \\
+  -F extra='{"version":"1.0.0"}' -F files=@screenshot.png`}</CodeBlock>
+        </Card.Content>
+      </Card>
+
+      <AppConfigModal editing={editing} onClose={() => setEditing(null)} onSaved={load} />
+    </div>
+  )
+}
+
+type Form = {
+  slug: string
+  name: string
+  active: boolean
+  origins: string
+  fields: string
+  strict: boolean
+  maxFiles: string
+  maxFileMb: string
+  mime: string
+  retention: string
+}
+
+function toForm(slug: string, c: AppConfig | null): Form {
+  return {
+    slug,
+    name: c?.name ?? '',
+    active: (c?.status ?? 'active') === 'active',
+    origins: c?.allowed_origins.join('\n') ?? '',
+    fields: c?.fields.length ? JSON.stringify(c.fields, null, 2) : '[]',
+    strict: c?.strict_fields ?? false,
+    maxFiles: c?.max_files?.toString() ?? '',
+    maxFileMb: c?.max_file_bytes ? String(+(c.max_file_bytes / 1024 / 1024).toFixed(2)) : '',
+    mime: c?.allowed_mime?.join(', ') ?? '',
+    retention: c?.retention_days?.toString() ?? ''
+  }
+}
+
+function AppConfigModal({
+  editing,
+  onClose,
+  onSaved
+}: {
+  editing: { slug: string; config: AppConfig | null } | null
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const { t } = useT()
+  const [form, setForm] = useState<Form>(toForm('', null))
+  const [pending, setPending] = useState(false)
+  const set = (patch: Partial<Form>) => setForm((f) => ({ ...f, ...patch }))
+  const isNew = !editing?.slug
+
+  useEffect(() => {
+    if (editing) setForm(toForm(editing.slug, editing.config))
+  }, [editing])
+
+  const save = async () => {
+    let fields: unknown
+    try {
+      fields = JSON.parse(form.fields || '[]')
+    } catch {
+      toast.danger(t('apps.invalidJson'))
+      return
+    }
+    const num = (v: string) => (v.trim() === '' ? null : Number(v))
+    const mb = num(form.maxFileMb)
+    setPending(true)
+    try {
+      await api(`/api/admin/apps/${encodeURIComponent(form.slug)}`, {
+        method: 'PUT',
+        body: {
+          name: form.name.trim() || null,
+          status: form.active ? 'active' : 'disabled',
+          allowed_origins: form.origins.split(/\s+/).filter(Boolean),
+          fields,
+          strict_fields: form.strict,
+          max_files: num(form.maxFiles),
+          max_file_bytes: mb === null ? null : Math.round(mb * 1024 * 1024),
+          allowed_mime: form.mime.trim() ? form.mime.split(/[,\s]+/).filter(Boolean) : null,
+          retention_days: num(form.retention)
+        }
+      })
+      toast.success(t('common.saved'))
+      onSaved()
+      onClose()
+    } catch (e) {
+      toast.danger(errorMessage(e))
+    } finally {
+      setPending(false)
+    }
+  }
+
+  const remove = async () => {
+    try {
+      await api(`/api/admin/apps/${encodeURIComponent(form.slug)}`, { method: 'DELETE' })
+      toast.success(t('common.deleted'))
+      onSaved()
+      onClose()
+    } catch (e) {
+      toast.danger(errorMessage(e))
+    }
+  }
+
+  return (
+    <Modal.Backdrop isOpen={!!editing} onOpenChange={(o) => !o && onClose()}>
+      <Modal.Container size="lg" scroll="inside">
+        <Modal.Dialog className="sm:max-w-2xl">
+          <Modal.CloseTrigger />
+          <Modal.Header>
+            <Modal.Heading>
+              {isNew ? t('apps.new') : t('apps.edit')}
+              {!isNew && <span className="ml-2 font-mono text-sm font-normal text-muted">{form.slug}</span>}
+            </Modal.Heading>
+          </Modal.Header>
+          <Modal.Body>
+            <form
+              id="app-config"
+              className="flex flex-col gap-4"
+              onSubmit={(e) => {
+                e.preventDefault()
+                save()
+              }}
+            >
+              {isNew && (
+                <TextField value={form.slug} onChange={(slug) => set({ slug })} isRequired autoFocus isInvalid={!!form.slug && !SLUG.test(form.slug)}>
+                  <Label>{t('apps.slug')}</Label>
+                  <Input placeholder="my-app" className="font-mono" />
+                  <Description>{t('apps.slugHint')}</Description>
+                </TextField>
+              )}
+              <div className="grid gap-4 sm:grid-cols-2">
+                <TextField value={form.name} onChange={(name) => set({ name })}>
+                  <Label>{t('apps.name')}</Label>
+                  <Input />
+                </TextField>
+                <div className="flex items-end pb-2">
+                  <Switch isSelected={form.active} onChange={(active) => set({ active })}>
+                    <Switch.Content>
+                      <Switch.Control>
+                        <Switch.Thumb />
+                      </Switch.Control>
+                      {t('apps.enabled')}
+                    </Switch.Content>
+                  </Switch>
+                </div>
+              </div>
+              <TextField value={form.origins} onChange={(origins) => set({ origins })}>
+                <Label>{t('apps.origins')}</Label>
+                <TextArea rows={2} className="font-mono text-xs" placeholder="https://example.com" />
+                <Description>{t('apps.originsHint')}</Description>
+              </TextField>
+              <TextField value={form.fields} onChange={(fields) => set({ fields })}>
+                <Label>{t('apps.fields')}</Label>
+                <TextArea rows={6} className="font-mono text-xs" />
+                <Description>{t('apps.fieldsHint')}</Description>
+              </TextField>
+              <Switch isSelected={form.strict} onChange={(strict) => set({ strict })}>
+                <Switch.Content>
+                  <Switch.Control>
+                    <Switch.Thumb />
+                  </Switch.Control>
+                  {t('apps.strict')}
+                </Switch.Content>
+              </Switch>
+              <div className="grid gap-4 sm:grid-cols-3">
+                <TextField value={form.maxFiles} onChange={(maxFiles) => set({ maxFiles })}>
+                  <Label>{t('apps.maxFiles')}</Label>
+                  <Input type="number" min={0} max={20} placeholder={t('common.default')} />
+                </TextField>
+                <TextField value={form.maxFileMb} onChange={(maxFileMb) => set({ maxFileMb })}>
+                  <Label>{t('apps.maxFileMb')}</Label>
+                  <Input type="number" min={0} step="any" placeholder={t('common.default')} />
+                </TextField>
+                <TextField value={form.retention} onChange={(retention) => set({ retention })}>
+                  <Label>{t('apps.retention')}</Label>
+                  <Input type="number" min={1} placeholder="∞" />
+                </TextField>
+              </div>
+              <TextField value={form.mime} onChange={(mime) => set({ mime })}>
+                <Label>{t('apps.mime')}</Label>
+                <Input className="font-mono text-xs" placeholder="image/*, application/pdf" />
+                <Description>{t('apps.mimeHint')}</Description>
+              </TextField>
+            </form>
+          </Modal.Body>
+          <Modal.Footer className="justify-between">
+            <div>
+              {editing?.config && <ConfirmButton label={t('apps.deleteConfig')} title={t('apps.deleteConfig')} desc={t('apps.deleteConfirm')} onConfirm={remove} />}
+            </div>
+            <div className="flex gap-2">
+              <Button slot="close" variant="tertiary">
+                {t('action.cancel')}
+              </Button>
+              <Button type="submit" form="app-config" isPending={pending} isDisabled={!SLUG.test(form.slug)}>
+                {t('action.save')}
+              </Button>
+            </div>
+          </Modal.Footer>
+        </Modal.Dialog>
+      </Modal.Container>
+    </Modal.Backdrop>
+  )
+}

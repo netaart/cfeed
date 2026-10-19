@@ -1,0 +1,221 @@
+import { TrashBin } from '@gravity-ui/icons'
+import { Alert, Button, Chip, Input, Label, Modal, Spinner, TextArea, TextField, toast } from '@heroui/react'
+import { useEffect, useState } from 'react'
+import { api, errorMessage } from '../api'
+import { fmtBytes, fmtTime, join } from '../format'
+import { useT } from '../i18n'
+import { STATUSES, type Feedback, type FeedbackDetail } from '../types'
+import { CodeBlock, ConfirmButton, KV, SimpleSelect, StatusChip } from '../ui'
+
+type Props = {
+  id: string | null
+  onClose: () => void
+  onChanged: (fb: Feedback) => void
+  onDeleted: (id: string) => void
+}
+
+export function FeedbackDetailModal({ id, onClose, onChanged, onDeleted }: Props) {
+  const { t, lang } = useT()
+  const [fb, setFb] = useState<FeedbackDetail | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [status, setStatus] = useState('open')
+  const [tags, setTags] = useState('')
+  const [note, setNote] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    if (!id) return
+    setFb(null)
+    setError(null)
+    api<FeedbackDetail>(`/api/v1/feedback/${id}`).then(
+      (d) => {
+        setFb(d)
+        setStatus(d.status)
+        setTags(d.tags.join(', '))
+        setNote(d.note ?? '')
+      },
+      (e) => setError(errorMessage(e))
+    )
+  }, [id])
+
+  const save = async () => {
+    if (!fb) return
+    setSaving(true)
+    try {
+      const updated = await api<Feedback>(`/api/v1/feedback/${fb.id}`, {
+        method: 'PATCH',
+        body: { status, tags: tags.split(/[,，]/).map((s) => s.trim()).filter(Boolean), note: note.trim() || null }
+      })
+      setFb({ ...fb, ...updated })
+      onChanged(updated)
+      toast.success(t('common.saved'))
+    } catch (e) {
+      toast.danger(errorMessage(e))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const remove = async () => {
+    if (!fb) return
+    try {
+      await api(`/api/v1/feedback/${fb.id}`, { method: 'DELETE' })
+      toast.success(t('common.deleted'))
+      onDeleted(fb.id)
+    } catch (e) {
+      toast.danger(errorMessage(e))
+    }
+  }
+
+  const images = fb?.attachments.filter((a) => /^image\/(png|jpeg|webp|gif)$/.test(a.content_type)) ?? []
+  const others = fb?.attachments.filter((a) => !images.includes(a)) ?? []
+
+  return (
+    <Modal.Backdrop isOpen={!!id} onOpenChange={(open) => !open && onClose()}>
+      <Modal.Container size="lg" scroll="inside">
+        <Modal.Dialog className="sm:max-w-3xl">
+          <Modal.CloseTrigger />
+          <Modal.Header>
+            <Modal.Heading className="flex flex-wrap items-center gap-2">
+              {t('fb.detail')}
+              {fb && (
+                <>
+                  <StatusChip status={fb.status} />
+                  <Chip size="sm" variant="secondary">
+                    {fb.type}
+                  </Chip>
+                  <span className="font-mono text-xs font-normal text-muted">
+                    {fb.app} · {fb.id}
+                  </span>
+                </>
+              )}
+            </Modal.Heading>
+          </Modal.Header>
+          <Modal.Body>
+            {error && (
+              <Alert status="danger">
+                <Alert.Indicator />
+                <Alert.Content>
+                  <Alert.Title>{error}</Alert.Title>
+                </Alert.Content>
+              </Alert>
+            )}
+            {!fb && !error && (
+              <div className="flex justify-center py-16">
+                <Spinner />
+              </div>
+            )}
+            {fb && (
+              <div className="flex flex-col gap-6">
+                <section>
+                  <p className="text-base leading-relaxed whitespace-pre-wrap">{fb.content}</p>
+                  <p className="mt-2 text-xs text-muted">{fmtTime(fb.created_at, lang)}</p>
+                </section>
+
+                <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+                  <KV label={t('fb.contact')}>{fb.contact}</KV>
+                  <KV label={t('fb.userId')}>{fb.user_id}</KV>
+                  <KV label={t('fb.rating')}>{fb.rating ? '★'.repeat(fb.rating) : null}</KV>
+                  <KV label={t('fb.version')}>{fb.app_version}</KV>
+                  <div className="col-span-2">
+                    <KV label={t('fb.pageUrl')}>{fb.page_url}</KV>
+                  </div>
+                </dl>
+
+                {(images.length > 0 || others.length > 0) && (
+                  <section>
+                    <h3 className="mb-2 text-sm font-medium">{t('fb.files')}</h3>
+                    <div className="flex flex-wrap gap-3">
+                      {images.map((a) => (
+                        <a key={a.id} href={a.url} target="_blank" rel="noreferrer" title={a.filename}>
+                          <img src={a.url} alt={a.filename} className="h-28 w-auto max-w-56 rounded-lg border border-separator object-cover" />
+                        </a>
+                      ))}
+                    </div>
+                    {others.length > 0 && (
+                      <ul className="mt-3 flex flex-col gap-1 text-sm">
+                        {others.map((a) => (
+                          <li key={a.id}>
+                            <a className="text-accent hover:underline" href={a.url}>
+                              {a.filename}
+                            </a>{' '}
+                            <span className="text-xs text-muted">
+                              {a.content_type} · {fmtBytes(a.size)}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </section>
+                )}
+
+                {Object.keys(fb.extra).length > 0 && (
+                  <section>
+                    <h3 className="mb-2 text-sm font-medium">{t('fb.extra')}</h3>
+                    <CodeBlock>{JSON.stringify(fb.extra, null, 2)}</CodeBlock>
+                  </section>
+                )}
+
+                <section>
+                  <h3 className="mb-2 text-sm font-medium">{t('fb.env')}</h3>
+                  <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+                    <KV label={t('fb.browser')}>{join(fb.ua_browser, fb.ua_browser_version) || null}</KV>
+                    <KV label={t('fb.os')}>{join(fb.ua_os, fb.ua_os_version) || null}</KV>
+                    <KV label={t('fb.device')}>{fb.ua_device}</KV>
+                    <KV label={t('fb.location')}>{join(fb.country, fb.region, fb.city) || null}</KV>
+                    <KV label={t('fb.timezone')}>{fb.timezone}</KV>
+                    <KV label={t('fb.language')}>{fb.language}</KV>
+                    <KV label={t('fb.network')}>{fb.asn ? `AS${fb.asn} · ${fb.colo ?? ''}` : null}</KV>
+                    <KV label={t('fb.referer')}>{fb.referer ?? fb.origin}</KV>
+                    <KV label={t('fb.ipHash')}>
+                      {fb.ip_hash && <span className="font-mono text-xs">{fb.ip_hash.slice(0, 12)}</span>}
+                    </KV>
+                  </dl>
+                  {fb.ua && <p className="mt-3 font-mono text-xs break-all text-muted">{fb.ua}</p>}
+                </section>
+
+                <section className="flex flex-col gap-3 rounded-2xl border border-separator p-4">
+                  <h3 className="text-sm font-medium">{t('fb.manage')}</h3>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <SimpleSelect
+                      label={t('fb.status')}
+                      value={status}
+                      onChange={setStatus}
+                      options={STATUSES.map((s) => ({ id: s, label: t(`status.${s}`) }))}
+                    />
+                    <TextField value={tags} onChange={setTags}>
+                      <Label>{t('fb.tags')}</Label>
+                      <Input placeholder={t('fb.tagsHint')} />
+                    </TextField>
+                  </div>
+                  <TextField value={note} onChange={setNote}>
+                    <Label>{t('fb.note')}</Label>
+                    <TextArea rows={3} />
+                  </TextField>
+                </section>
+              </div>
+            )}
+          </Modal.Body>
+          {fb && (
+            <Modal.Footer className="justify-between">
+              <ConfirmButton
+                label={
+                  <>
+                    <TrashBin />
+                    {t('action.delete')}
+                  </>
+                }
+                title={t('action.delete')}
+                desc={t('fb.deleteConfirm')}
+                onConfirm={remove}
+              />
+              <Button isPending={saving} onPress={save}>
+                {t('action.save')}
+              </Button>
+            </Modal.Footer>
+          )}
+        </Modal.Dialog>
+      </Modal.Container>
+    </Modal.Backdrop>
+  )
+}
