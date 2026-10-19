@@ -208,12 +208,23 @@ For stronger protection, put Cloudflare Access in front of the Worker domain (no
 |---|---|
 | `ua` | `User-Agent` |
 | `client_hints` | `Sec-CH-UA`, `Sec-CH-UA-Mobile`, `Sec-CH-UA-Platform` |
-| `ua_browser/os/device` | Regex parsing in `lib/ua.ts`: Chrome/Edge/Firefox/Safari/WeChat/QQ/Feishu/DingTalk/Electron and common bots |
+| `ua_browser/os/device` | Regex parsing in `lib/ua.ts` (see below) |
 | `country region city timezone asn colo` | `c.req.raw.cf` |
 | `ip_hash` | HMAC of `CF-Connecting-IP` |
 | `language referer origin` | The matching request headers |
 
-Why not `ua-parser-js`: only coarse classification is needed, which takes about 60 lines of regex. The raw UA is stored, so it can be re-parsed offline later.
+`ua_device` is one of:
+
+| Value | Meaning |
+|---|---|
+| `desktop` `mobile` `tablet` | Browsers, plus native apps whose OS is known: `okhttp/…` and `Dalvik/…` count as Android `mobile` |
+| `bot` | Crawlers and headless browsers only (Googlebot, bingbot, Bytespider, Slackbot, HeadlessChrome, …) |
+| `cli` | Scripts and HTTP tools: curl, wget, HTTPie, python-requests/httpx/aiohttp, Go, Node fetch, node-fetch, axios, Postman, Java |
+| `unknown` | No UA, or a native client whose form factor can't be told: iOS/macOS `CFNetwork … Darwin/x` (OS recorded as `Darwin`), Flutter `Dart/x` |
+
+When no known browser or tool matches, a leading `Name/version` product token is used as the client (`ua_browser`). Apps that want accurate context can therefore send their own UA, e.g. `CohubMobile/1.2.3 (Android 14; Pixel 8)` or `CohubMobile/1.2.3 (iPhone; iOS 18.0)`, which parses to `CohubMobile 1.2`, Android 14 / iOS 18.0, `mobile`.
+
+Why not `ua-parser-js`: only coarse classification is needed, which takes about 80 lines of regex. The raw UA is stored, so rows can be re-parsed whenever the rules change.
 
 When feedback is relayed through an integrator's **backend**, the captured UA is the relay's. In that case the client's real UA should go into `extra.client_ua`.
 

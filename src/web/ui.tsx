@@ -3,6 +3,13 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { useT } from './i18n'
 import type { Status } from './types'
 
+const DEVICES = ['desktop', 'mobile', 'tablet', 'bot', 'cli', 'unknown'] as const
+
+export function useDeviceLabel() {
+  const { t } = useT()
+  return (d: string | null) => (d && (DEVICES as readonly string[]).includes(d) ? t(`device.${d as (typeof DEVICES)[number]}`) : d)
+}
+
 const MARK_COLOR = { resolved: 'success', spam: 'danger' } as const
 
 export function StatusChip({ status }: { status: Status }) {

@@ -5,7 +5,7 @@ import { api, errorMessage } from '../api'
 import { fmtBytes, fmtTime, join } from '../format'
 import { useT } from '../i18n'
 import { MARKS, type Feedback, type FeedbackDetail, type Status } from '../types'
-import { CodeBlock, ConfirmButton, KV, StatusChip, useIsMobile } from '../ui'
+import { CodeBlock, ConfirmButton, KV, StatusChip, useDeviceLabel, useIsMobile } from '../ui'
 
 type Props = {
   id: string | null
@@ -23,6 +23,7 @@ export function FeedbackDetailModal({ id, onClose, onChanged, onDeleted }: Props
   const [note, setNote] = useState('')
   const [saving, setSaving] = useState(false)
   const mobile = useIsMobile()
+  const deviceLabel = useDeviceLabel()
 
   useEffect(() => {
     if (!id) return
@@ -163,7 +164,7 @@ export function FeedbackDetailModal({ id, onClose, onChanged, onDeleted }: Props
                   <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3">
                     <KV label={t('fb.browser')}>{join(fb.ua_browser, fb.ua_browser_version) || null}</KV>
                     <KV label={t('fb.os')}>{join(fb.ua_os, fb.ua_os_version) || null}</KV>
-                    <KV label={t('fb.device')}>{fb.ua_device}</KV>
+                    <KV label={t('fb.device')}>{deviceLabel(fb.ua_device)}</KV>
                     <KV label={t('fb.location')}>{join(fb.country, fb.region, fb.city) || null}</KV>
                     <KV label={t('fb.timezone')}>{fb.timezone}</KV>
                     <KV label={t('fb.language')}>{fb.language}</KV>

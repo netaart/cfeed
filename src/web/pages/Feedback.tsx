@@ -5,7 +5,7 @@ import { api, errorMessage } from '../api'
 import { fmtShortTime, fmtTime, join } from '../format'
 import { useT } from '../i18n'
 import { MARKS, STATUSES, type AppSummary, type Feedback, type Stats } from '../types'
-import { SimpleSelect, StatusChip, useIsMobile } from '../ui'
+import { SimpleSelect, StatusChip, useDeviceLabel, useIsMobile } from '../ui'
 import { FeedbackDetailModal } from './FeedbackDetail'
 
 const ALL = '__all'
@@ -43,6 +43,7 @@ export function FeedbackPage() {
   const [selected, setSelected] = useState<string | null>(null)
   const [filtersOpen, setFiltersOpen] = useState(false)
   const mobile = useIsMobile()
+  const deviceLabel = useDeviceLabel()
 
   const set = (patch: Partial<Filters>) => setFilters((f) => ({ ...f, ...patch }))
 
@@ -249,7 +250,7 @@ export function FeedbackPage() {
               </div>
               <p className="mt-2 line-clamp-3 text-sm leading-relaxed break-words">{fb.content}</p>
               <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
-                <span>{join(fb.ua_os, fb.ua_browser) || fb.ua_device || '—'}</span>
+                <span>{join(fb.ua_os, fb.ua_browser) || deviceLabel(fb.ua_device) || '—'}</span>
                 {(fb.country || fb.city) && <span>· {join(fb.country, fb.city)}</span>}
                 {fb.attachment_count > 0 && (
                   <span className="inline-flex items-center gap-0.5">
@@ -312,7 +313,7 @@ export function FeedbackPage() {
                     </Table.Cell>
                     <Table.Cell>
                       <div className="text-sm">{join(fb.ua_os, fb.ua_browser) || '—'}</div>
-                      <div className="text-xs text-muted">{fb.ua_device}</div>
+                      <div className="text-xs text-muted">{deviceLabel(fb.ua_device)}</div>
                     </Table.Cell>
                     <Table.Cell>
                       <span className="text-sm">{join(fb.country, fb.city) || '—'}</span>
