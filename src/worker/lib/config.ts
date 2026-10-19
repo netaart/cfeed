@@ -50,8 +50,10 @@ export function appRowToJson(row: AppRow) {
   }
 }
 
+export const ANY_MIME = '*/*'
+
 export function mimeAllowed(type: string, allowed: string[]): boolean {
-  return allowed.some((a) => a === type || (a.endsWith('/*') && type.startsWith(a.slice(0, -1))))
+  return allowed.some((a) => a === ANY_MIME || a === type || (a.endsWith('/*') && type.startsWith(a.slice(0, -1))))
 }
 
 const HOSTNAME = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$/

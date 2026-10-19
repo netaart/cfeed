@@ -7,7 +7,7 @@ import { fail } from '../lib/http'
 import { hmacHex, newApiKey, safeEqual, sha256Hex, ulid } from '../lib/id'
 
 const admin = new Hono<AppEnv>()
-const MIME = /^[\w.+-]+\/([\w.+-]+|\*)$/
+const MIME = /^(\*\/\*|[\w.+-]+\/([\w.+-]+|\*))$/
 const MAX_UPLOAD_BYTES = 50 * 1024 * 1024
 
 admin.post('/login', async (c) => {
@@ -100,7 +100,7 @@ admin.put('/apps/:slug', async (c) => {
   let mime: string[] | null = null
   if (b.allowed_mime !== undefined && b.allowed_mime !== null) {
     if (!Array.isArray(b.allowed_mime) || !b.allowed_mime.every((m: unknown) => typeof m === 'string' && MIME.test(m)))
-      fail(400, 'invalid_field', 'allowed_mime must be an array of MIME types such as image/png or image/*')
+      fail(400, 'invalid_field', 'allowed_mime must be an array of MIME types such as image/png, image/*, or */* (any type)')
     mime = b.allowed_mime
   }
 

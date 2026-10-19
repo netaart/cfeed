@@ -163,7 +163,7 @@ List filters:
 
 `x.<path>` safety: the path must match `^[A-Za-z0-9_]+(\.[A-Za-z0-9_]+){0,4}$`, with at most 5 such filters. Each filter becomes `id IN (SELECT feedback_id FROM feedback_extra WHERE path = ? AND value IN (?, …))`, served by the primary key; **both path and values are bound parameters**, never interpolated. Because values are stored as JSON text, candidates include both the string and the literal form: `x.n=3` matches `3` and `"3"`, `x.pro=true` matches `true` and `"true"`. Multiple filters are ANDed.
 
-**Attachment download safety**: anything other than `image/png|jpeg|webp|gif` is served as `application/octet-stream` with `Content-Disposition: attachment`. Every response carries `X-Content-Type-Options: nosniff` and `Content-Security-Policy: default-src 'none'; sandbox`. SVG and HTML are not in the default allowlist, so stored XSS cannot run on the console's origin.
+**Attachment download safety**: anything other than `image/png|jpeg|webp|gif` is served as `application/octet-stream` with `Content-Disposition: attachment`. Every response carries `X-Content-Type-Options: nosniff` and `Content-Security-Policy: default-src 'none'; sandbox`. SVG and HTML are not in the default allowlist, and even when an app allows them (or any type, see below) they are only ever downloaded, so stored XSS cannot run on the console's origin.
 
 ### 4.3 Admin `/api/admin/*` (ADMIN_TOKEN only)
 
@@ -186,7 +186,7 @@ List filters:
 | Method | Path | Description |
 |---|---|---|
 | GET | `/api/admin/apps` | Registered configs |
-| PUT | `/api/admin/apps/:slug` | Create or replace: `name`, `allowed_domains` (hostnames or `*.host`; full URLs are reduced to their host, IDNs to punycode), `max_files`, `max_file_bytes`, `allowed_mime`, `status` |
+| PUT | `/api/admin/apps/:slug` | Create or replace: `name`, `allowed_domains` (hostnames or `*.host`; full URLs are reduced to their host, IDNs to punycode), `max_files`, `max_file_bytes`, `allowed_mime` (exact types, `image/*`-style wildcards, or `*/*` to accept any type without checking; `null` = global default), `status` |
 | DELETE | `/api/admin/apps/:slug` | Remove the config only (defaults apply again); **feedback is kept** |
 
 Bulk-deleting an app's feedback is planned for P2 (`DELETE /api/admin/feedback?app=…`).

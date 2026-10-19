@@ -8,6 +8,7 @@ import type { AppConfig, AppSummary } from '../types'
 import { CodeBlock, ConfirmButton, EmptyState, PageHeader, useIsMobile } from '../ui'
 
 const SLUG = /^[a-z0-9][a-z0-9_-]{0,63}$/
+const ANY_MIME = '*/*'
 
 export function AppsPage() {
   const { t, lang } = useT()
@@ -146,6 +147,7 @@ type Form = {
   maxFiles: string
   maxFileMb: string
   mime: string
+  anyMime: boolean
 }
 
 function toForm(slug: string, c: AppConfig | null): Form {
@@ -156,7 +158,8 @@ function toForm(slug: string, c: AppConfig | null): Form {
     domains: c?.allowed_domains.join('\n') ?? '',
     maxFiles: c?.max_files?.toString() ?? '',
     maxFileMb: c?.max_file_bytes ? String(+(c.max_file_bytes / 1024 / 1024).toFixed(2)) : '',
-    mime: c?.allowed_mime?.join(', ') ?? ''
+    mime: c?.allowed_mime?.filter((m) => m !== ANY_MIME).join(', ') ?? '',
+    anyMime: !!c?.allowed_mime?.includes(ANY_MIME)
   }
 }
 
@@ -193,7 +196,7 @@ function AppConfigModal({
           allowed_domains: form.domains.split(/[\s,，]+/).filter(Boolean),
           max_files: num(form.maxFiles),
           max_file_bytes: mb === null ? null : Math.round(mb * 1024 * 1024),
-          allowed_mime: form.mime.trim() ? form.mime.split(/[,\s]+/).filter(Boolean) : null
+          allowed_mime: form.anyMime ? [ANY_MIME] : form.mime.trim() ? form.mime.split(/[,\s]+/).filter(Boolean) : null
         }
       })
       toast.success(t('common.saved'))
@@ -275,11 +278,22 @@ function AppConfigModal({
                   <Input type="number" min={0} step="any" placeholder={t('common.default')} />
                 </TextField>
               </div>
-              <TextField value={form.mime} onChange={(mime) => set({ mime })}>
-                <Label>{t('apps.mime')}</Label>
-                <Input className="font-mono text-xs" placeholder="image/*, application/pdf" />
-                <Description>{t('apps.mimeHint')}</Description>
-              </TextField>
+              <div className="flex flex-col gap-2">
+                <TextField value={form.mime} onChange={(mime) => set({ mime })} isDisabled={form.anyMime}>
+                  <Label>{t('apps.mime')}</Label>
+                  <Input className="font-mono text-xs" placeholder="image/*, application/pdf" />
+                  <Description>{t('apps.mimeHint')}</Description>
+                </TextField>
+                <Switch isSelected={form.anyMime} onChange={(anyMime) => set({ anyMime })}>
+                  <Switch.Content>
+                    <Switch.Control>
+                      <Switch.Thumb />
+                    </Switch.Control>
+                    {t('apps.anyMime')}
+                  </Switch.Content>
+                </Switch>
+                {form.anyMime && <p className="text-xs text-muted">{t('apps.anyMimeHint')}</p>}
+              </div>
             </form>
           </Modal.Body>
           <Modal.Footer className="pb-safe justify-between">
