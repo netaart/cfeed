@@ -8,11 +8,6 @@ export type Feedback = {
   app: string
   type: string
   content: string
-  contact: string | null
-  rating: number | null
-  user_id: string | null
-  page_url: string | null
-  app_version: string | null
   status: Status
   tags: string[]
   extra: Record<string, unknown>

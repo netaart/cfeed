@@ -63,7 +63,7 @@ Notes:
 
 - All primary keys are **ULIDs**: time-ordered and convenient for cursor pagination.
 - `feedback` columns fall into three groups:
-  1. **Client-writable**: `app type content contact rating user_id page_url app_version extra`
+  1. **Client-writable**: `app type content extra`. cfeed defines no other app-level fields: contact, user id, rating, app version, page URL and the like belong in `extra`, shaped however each app wants.
   2. **Server-captured**: `ua* client_hints ip_hash country region city timezone asn colo language referer origin`. Same-named fields sent by the client are ignored.
   3. **Triage**: `status tags note`, writable only with a `write` key or ADMIN_TOKEN. `status` is `open` (unmarked, the default), `resolved`, or `spam`; the console shows only the two marks.
 - Raw IPs are never stored, only `HMAC-SHA256(IP_SALT, ip)`. It is used for rate limiting and to spot repeated submissions from the same client.
@@ -85,7 +85,7 @@ To make `x.<path>` filters fast for arbitrary keys, every submission is also fla
 ```
 → `(version, "1.4.2")`, `(tags, "sync")`, `(tags, "ui")`, `(device.model, "Pixel 8")`.
 
-Migration `0003` backfills the table from existing rows with the same rules.
+Migration `0003` backfills the table from existing rows with the same rules. Migration `0005` moved the former `contact / user_id / rating / app_version / page_url` columns into `extra` (and the index) and dropped them.
 
 ## 4. API
 
@@ -102,11 +102,11 @@ Both **multipart** (with attachments) and **JSON** (no attachments) are accepted
 | `content` | ✅ | At most `MAX_CONTENT_CHARS` |
 | `app` | | Must match `^[a-z0-9][a-z0-9_-]{0,63}$`; defaults to `default`. May also be passed as `?app=` |
 | `type` | | Free-form; suggested `bug / feature / question / other` |
-| `contact` `user_id` `page_url` `app_version` | | |
-| `rating` | | 1–5 |
-| `extra` | | JSON string in multipart, object in JSON |
+| `extra` | | Any JSON object (JSON string in multipart, object in JSON). All app-specific data goes here |
 | `files` | | Multipart only, repeatable |
 | `website` | | Honeypot; if non-empty the submission is silently dropped with a 201 |
+
+Any other top-level field is rejected with `400 unknown_field` and a hint to move it into `extra`, so misplaced data fails loudly instead of being dropped.
 
 ```bash
 # Minimal
@@ -116,7 +116,7 @@ curl -X POST https://cfeed.example.workers.dev/api/v1/feedback \
 # With app, custom fields, and an attachment
 curl -X POST https://cfeed.example.workers.dev/api/v1/feedback \
   -F app=memos-desktop -F type=bug -F content='Save button does nothing' \
-  -F extra='{"version":"1.4.2","plan":"pro"}' -F files=@screenshot.png
+  -F extra='{"app_version":"1.4.2","user_id":"u_42","contact":"a@b.c"}' -F files=@screenshot.png
 ```
 
 Response `201`:
@@ -155,7 +155,7 @@ List filters:
 | Parameter | Example | Notes |
 |---|---|---|
 | `app` | `app=memos-desktop,blog` | Comma-separated |
-| `status` `type` `user_id` `country` `ua_os` `ua_device` | `status=open,resolved` | Comma-separated. `spam` is hidden unless `status` is given |
+| `status` `type` `country` `ua_os` `ua_device` | `status=open,resolved` | Comma-separated. `spam` is hidden unless `status` is given |
 | `from` `to` | `2026-10-01` or a millisecond timestamp | Filters `created_at`; a date-only `to` is inclusive |
 | `q` | `crash` | `LIKE` match on `content` |
 | `x.<path>` | `x.version=1.4.2`, `x.device.model=iPhone15` | Filters on `extra` |

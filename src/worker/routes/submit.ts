@@ -12,6 +12,7 @@ const submit = new Hono<AppEnv>()
 submit.on(['POST', 'OPTIONS'], '/feedback', cors({ origin: '*', allowMethods: ['POST', 'OPTIONS'], allowHeaders: ['Content-Type'], maxAge: 86400 }))
 
 type Input = Record<string, unknown>
+const FIELDS = new Set(['app', 'type', 'content', 'extra', 'website'])
 
 function optString(input: Input, key: string, max: number): string | null {
   const v = input[key]
@@ -57,6 +58,9 @@ submit.post('/feedback', async (c) => {
     fail(415, 'unsupported_media_type', 'Use application/json or multipart/form-data')
   }
 
+  const unknown = Object.keys(input).find((k) => !FIELDS.has(k))
+  if (unknown) fail(400, 'unknown_field', `Unknown field "${unknown}": put app-specific data in extra, e.g. extra.${unknown}`)
+
   const app = optString(input, 'app', 64) ?? c.req.query('app') ?? 'default'
   if (!APP_SLUG.test(app)) fail(400, 'invalid_app', `app must match ${APP_SLUG}`)
 
@@ -77,12 +81,6 @@ submit.post('/feedback', async (c) => {
   const maxContent = intVar(env.MAX_CONTENT_CHARS, 10000)
   const content = optString(input, 'content', maxContent)
   if (!content) fail(400, 'invalid_field', 'content is required')
-
-  let rating: number | null = null
-  if (input.rating !== undefined && input.rating !== null && input.rating !== '') {
-    rating = Number(input.rating)
-    if (!Number.isInteger(rating) || rating < 1 || rating > 5) fail(400, 'invalid_field', 'rating must be an integer 1-5')
-  }
 
   const extra = parseExtra(input.extra, intVar(env.MAX_EXTRA_BYTES, 16384))
   const extraIndex = extraIndexEntries(extra)
@@ -129,11 +127,6 @@ submit.post('/feedback', async (c) => {
     app,
     type: optString(input, 'type', 32) ?? 'other',
     content,
-    contact: optString(input, 'contact', 200),
-    rating,
-    user_id: optString(input, 'user_id', 128),
-    page_url: optString(input, 'page_url', 2048),
-    app_version: optString(input, 'app_version', 64),
     extra: JSON.stringify(extra),
     ...ctx,
     attachment_count: attachments.length,

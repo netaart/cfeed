@@ -113,15 +113,26 @@ export function FeedbackDetailModal({ id, onClose, onChanged, onDeleted }: Props
                   <p className="mt-2 text-xs text-muted">{fmtTime(fb.created_at, lang)}</p>
                 </section>
 
-                <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-                  <KV label={t('fb.contact')}>{fb.contact}</KV>
-                  <KV label={t('fb.userId')}>{fb.user_id}</KV>
-                  <KV label={t('fb.rating')}>{fb.rating ? '★'.repeat(fb.rating) : null}</KV>
-                  <KV label={t('fb.version')}>{fb.app_version}</KV>
-                  <div className="col-span-2">
-                    <KV label={t('fb.pageUrl')}>{fb.page_url}</KV>
-                  </div>
-                </dl>
+                {Object.keys(fb.extra).length > 0 && (
+                  <section>
+                    <h3 className="mb-2 text-sm font-medium">{t('fb.extra')}</h3>
+                    <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+                      {Object.entries(fb.extra).map(([k, v]) =>
+                        v !== null && typeof v === 'object' ? (
+                          <div key={k} className="col-span-2 sm:col-span-3">
+                            <KV label={k}>
+                              <CodeBlock>{JSON.stringify(v, null, 2)}</CodeBlock>
+                            </KV>
+                          </div>
+                        ) : (
+                          <KV key={k} label={k}>
+                            {typeof v === 'string' ? v : <span className="font-mono">{JSON.stringify(v)}</span>}
+                          </KV>
+                        )
+                      )}
+                    </dl>
+                  </section>
+                )}
 
                 {(images.length > 0 || others.length > 0) && (
                   <section>
@@ -147,13 +158,6 @@ export function FeedbackDetailModal({ id, onClose, onChanged, onDeleted }: Props
                         ))}
                       </ul>
                     )}
-                  </section>
-                )}
-
-                {Object.keys(fb.extra).length > 0 && (
-                  <section>
-                    <h3 className="mb-2 text-sm font-medium">{t('fb.extra')}</h3>
-                    <CodeBlock>{JSON.stringify(fb.extra, null, 2)}</CodeBlock>
                   </section>
                 )}
 
