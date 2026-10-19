@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import type { AppEnv } from '../types'
-import { APP_SLUG, loadAppConfig, mimeAllowed } from '../lib/config'
+import { APP_SLUG, domainAllowed, loadAppConfig, mimeAllowed } from '../lib/config'
 import { requestContext } from '../lib/context'
 import { extraIndexEntries, parseExtra } from '../lib/extra'
 import { ApiError, fail, intVar } from '../lib/http'
@@ -68,9 +68,10 @@ submit.post('/feedback', async (c) => {
 
   const cfg = await loadAppConfig(env, app)
   if (cfg.status === 'disabled') fail(403, 'app_disabled', `app "${app}" is not accepting feedback`)
+  // Only browser requests carry Origin; servers and native clients without it are not restricted.
   const origin = c.req.header('origin')
-  if (cfg.allowedOrigins.length && (!origin || !cfg.allowedOrigins.includes(origin))) {
-    fail(403, 'origin_not_allowed', `Origin ${origin ?? '(none)'} is not allowed for app "${app}"`)
+  if (origin && cfg.allowedDomains.length && !domainAllowed(origin, cfg.allowedDomains)) {
+    fail(403, 'origin_not_allowed', `Origin ${origin} is not allowed for app "${app}"`)
   }
 
   const maxContent = intVar(env.MAX_CONTENT_CHARS, 10000)

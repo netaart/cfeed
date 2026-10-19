@@ -10,7 +10,7 @@ cfeed is an **anonymous**, general-purpose feedback service on Cloudflare Worker
 | Concept | Description |
 |---|---|
 | **app** | A plain string (e.g. `memos-desktop`) that groups feedback. It is not a credential. Defaults to `default`; unregistered apps are accepted as-is |
-| **App config** (optional) | Registered per app in the console: origin allowlist, attachment limits, retention, enable/disable. Apps without a config use global defaults |
+| **App config** (optional) | Registered per app in the console: source domain allowlist, attachment limits, enable/disable. Apps without a config use global defaults |
 | **API key** `ck_…` | **Only for reading and triaging feedback.** Issued in the console with two attributes: `app` (NULL = all apps) and `scope` (`read` or `write`). Only the hash is stored; the plaintext is shown once |
 | **ADMIN_TOKEN** | Worker secret with full privileges; used to sign in to the console and issue keys |
 
@@ -130,7 +130,7 @@ Processing:
 
 1. Rate-limit by IP hash with `SUBMIT_LIMITER` **before reading the body**, so abusive clients cannot make the Worker buffer large uploads. Over the limit → `429`.
 2. Parse the body and resolve `app` (default `default`). Load its config, falling back to global defaults. A `disabled` app → `403`; this is how a spammed app is shut off.
-3. If the app has `allowed_origins`, check `Origin`. This only stops cross-site submissions from browsers.
+3. If the app has `allowed_domains` and the request carries an `Origin` header, the Origin's hostname must match an entry: `neta.art` matches exactly that host (any scheme or port), `*.neta.art` matches subdomains only (not `neta.art` itself). Otherwise `403 origin_not_allowed`. Requests without `Origin` (servers, native clients, CLI) are not checked. This only stops other websites from submitting through a visitor's browser; it is not authentication, since non-browser clients can send any Origin.
 4. Validate fields, the size of `extra`, and attachments (count, size, MIME).
 5. Write attachments to R2 **in parallel** under `{app}/{feedback_id}/{attachment_id}`. The user-supplied filename is **never** part of the key. R2 failure → `502`.
 6. Insert the feedback, its `feedback_extra` rows, and attachments in one transaction with `DB.batch([...])`.
@@ -187,7 +187,7 @@ List filters:
 | Method | Path | Description |
 |---|---|---|
 | GET | `/api/admin/apps` | Registered configs |
-| PUT | `/api/admin/apps/:slug` | Create or replace: name, origins, limits, retention, status |
+| PUT | `/api/admin/apps/:slug` | Create or replace: `name`, `allowed_domains` (hostnames or `*.host`; full URLs are reduced to their host, IDNs to punycode), `max_files`, `max_file_bytes`, `allowed_mime`, `status` |
 | DELETE | `/api/admin/apps/:slug` | Remove the config only (defaults apply again); **feedback is kept** |
 
 Bulk-deleting an app's feedback is planned for P2 (`DELETE /api/admin/feedback?app=…`).
@@ -198,7 +198,7 @@ A React SPA built with [HeroUI v3](https://heroui.com) (React Aria + Tailwind v4
 
 - Sign in with ADMIN_TOKEN.
 - **Feedback** (`#feedback`): stat cards; filter by app / status / type / content / extra (`version=1.4.2 plan=pro`); cursor pagination; a detail view with content, attachment previews, extra, and request context, plus resolved/spam marks, tags, note, and delete.
-- **Apps** (`#apps`): every app seen with counts; create or edit configs (origin allowlist, attachment limits, retention, enable/disable); integration examples.
+- **Apps** (`#apps`): every app seen with counts; create or edit configs (source domain allowlist, attachment limits, enable/disable); integration examples.
 - **API Keys** (`#keys`): issue (app scope and read/write; plaintext shown once) and revoke.
 
 For stronger protection, put Cloudflare Access in front of the Worker domain (no code changes).
@@ -222,7 +222,7 @@ When feedback is relayed through an integrator's **backend**, the captured UA is
 
 1. Per-IP Rate Limiting binding (default 10 per 60 s).
 2. Mark a spammed app as `disabled`.
-3. Optional `allowed_origins` (only for apps with a config).
+3. Optional `allowed_domains` (only for apps with a config; browser submissions only).
 4. Honeypot field `website`.
 5. Hard limits on content length, extra size, attachment count, size, and MIME.
 6. Admins can mark feedback as `spam`; it is hidden by default.
@@ -244,7 +244,7 @@ Known tradeoff: anyone can write under any app name, including made-up ones. Tha
 |---|---|
 | **P0** | Anonymous submit, query API, key issuance/revocation, app configs, request context, rate limiting |
 | **P1** | Admin console, `/api/v1/stats` (shipped together with P0) |
-| **P2** | `retention_days` cleanup (Cron Trigger), bulk delete per app, CSV/NDJSON export, new-feedback webhooks, Turnstile, FTS5 |
+| **P2** | Bulk delete per app, CSV/NDJSON export, new-feedback webhooks, Turnstile, FTS5 |
 
 ## 10. Local development and deployment
 

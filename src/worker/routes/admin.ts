@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { deleteCookie, setSignedCookie } from 'hono/cookie'
 import type { AppEnv } from '../types'
 import { ADMIN_COOKIE, adminToken, requireAuth } from '../lib/auth'
-import { APP_SLUG, appRowToJson, type AppRow } from '../lib/config'
+import { APP_SLUG, appRowToJson, normalizeDomain, type AppRow } from '../lib/config'
 import { fail } from '../lib/http'
 import { hmacHex, newApiKey, safeEqual, sha256Hex, ulid } from '../lib/id'
 
@@ -93,17 +93,9 @@ admin.put('/apps/:slug', async (c) => {
   const status = b.status ?? 'active'
   if (status !== 'active' && status !== 'disabled') fail(400, 'invalid_field', 'status must be active or disabled')
 
-  const origins = b.allowed_origins ?? []
-  if (!Array.isArray(origins) || origins.length > 50) fail(400, 'invalid_field', 'allowed_origins must be an array (max 50)')
-  const normOrigins = origins.map((o: unknown) => {
-    try {
-      const u = new URL(String(o))
-      if (u.origin === 'null') throw 0
-      return u.origin
-    } catch {
-      fail(400, 'invalid_field', `Invalid origin: ${String(o)}`)
-    }
-  })
+  const domains = b.allowed_domains ?? []
+  if (!Array.isArray(domains) || domains.length > 50) fail(400, 'invalid_field', 'allowed_domains must be an array (max 50)')
+  const normDomains = domains.map((d: unknown) => normalizeDomain(String(d)) ?? fail(400, 'invalid_field', `Invalid domain: ${String(d)}`))
 
   let mime: string[] | null = null
   if (b.allowed_mime !== undefined && b.allowed_mime !== null) {
@@ -114,20 +106,19 @@ admin.put('/apps/:slug', async (c) => {
 
   const now = Date.now()
   const row = await c.env.DB.prepare(
-    `INSERT INTO apps (slug, name, allowed_origins, max_files, max_file_bytes, allowed_mime, retention_days, status, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-     ON CONFLICT(slug) DO UPDATE SET name = excluded.name, allowed_origins = excluded.allowed_origins, max_files = excluded.max_files, max_file_bytes = excluded.max_file_bytes,
-       allowed_mime = excluded.allowed_mime, retention_days = excluded.retention_days, status = excluded.status, updated_at = excluded.updated_at
+    `INSERT INTO apps (slug, name, allowed_domains, max_files, max_file_bytes, allowed_mime, status, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(slug) DO UPDATE SET name = excluded.name, allowed_domains = excluded.allowed_domains, max_files = excluded.max_files, max_file_bytes = excluded.max_file_bytes,
+       allowed_mime = excluded.allowed_mime, status = excluded.status, updated_at = excluded.updated_at
      RETURNING *`
   )
     .bind(
       slug,
       name,
-      JSON.stringify([...new Set(normOrigins)]),
+      JSON.stringify([...new Set(normDomains)]),
       optInt(b.max_files, 'max_files', 0, 20),
       optInt(b.max_file_bytes, 'max_file_bytes', 1, MAX_UPLOAD_BYTES),
       mime ? JSON.stringify(mime) : null,
-      optInt(b.retention_days, 'retention_days', 1, 36500),
       status,
       now,
       now

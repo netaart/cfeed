@@ -142,11 +142,10 @@ type Form = {
   slug: string
   name: string
   active: boolean
-  origins: string
+  domains: string
   maxFiles: string
   maxFileMb: string
   mime: string
-  retention: string
 }
 
 function toForm(slug: string, c: AppConfig | null): Form {
@@ -154,11 +153,10 @@ function toForm(slug: string, c: AppConfig | null): Form {
     slug,
     name: c?.name ?? '',
     active: (c?.status ?? 'active') === 'active',
-    origins: c?.allowed_origins.join('\n') ?? '',
+    domains: c?.allowed_domains.join('\n') ?? '',
     maxFiles: c?.max_files?.toString() ?? '',
     maxFileMb: c?.max_file_bytes ? String(+(c.max_file_bytes / 1024 / 1024).toFixed(2)) : '',
-    mime: c?.allowed_mime?.join(', ') ?? '',
-    retention: c?.retention_days?.toString() ?? ''
+    mime: c?.allowed_mime?.join(', ') ?? ''
   }
 }
 
@@ -192,11 +190,10 @@ function AppConfigModal({
         body: {
           name: form.name.trim() || null,
           status: form.active ? 'active' : 'disabled',
-          allowed_origins: form.origins.split(/\s+/).filter(Boolean),
+          allowed_domains: form.domains.split(/[\s,，]+/).filter(Boolean),
           max_files: num(form.maxFiles),
           max_file_bytes: mb === null ? null : Math.round(mb * 1024 * 1024),
-          allowed_mime: form.mime.trim() ? form.mime.split(/[,\s]+/).filter(Boolean) : null,
-          retention_days: num(form.retention)
+          allowed_mime: form.mime.trim() ? form.mime.split(/[,\s]+/).filter(Boolean) : null
         }
       })
       toast.success(t('common.saved'))
@@ -263,12 +260,12 @@ function AppConfigModal({
                   </Switch>
                 </div>
               </div>
-              <TextField value={form.origins} onChange={(origins) => set({ origins })}>
-                <Label>{t('apps.origins')}</Label>
-                <TextArea rows={2} className="font-mono text-xs" placeholder="https://example.com" />
-                <Description>{t('apps.originsHint')}</Description>
+              <TextField value={form.domains} onChange={(domains) => set({ domains })}>
+                <Label>{t('apps.domains')}</Label>
+                <TextArea rows={3} className="font-mono text-xs" placeholder={'neta.art\n*.neta.art'} />
+                <Description>{t('apps.domainsHint')}</Description>
               </TextField>
-              <div className="grid gap-4 sm:grid-cols-3">
+              <div className="grid gap-4 sm:grid-cols-2">
                 <TextField value={form.maxFiles} onChange={(maxFiles) => set({ maxFiles })}>
                   <Label>{t('apps.maxFiles')}</Label>
                   <Input type="number" min={0} max={20} placeholder={t('common.default')} />
@@ -276,10 +273,6 @@ function AppConfigModal({
                 <TextField value={form.maxFileMb} onChange={(maxFileMb) => set({ maxFileMb })}>
                   <Label>{t('apps.maxFileMb')}</Label>
                   <Input type="number" min={0} step="any" placeholder={t('common.default')} />
-                </TextField>
-                <TextField value={form.retention} onChange={(retention) => set({ retention })}>
-                  <Label>{t('apps.retention')}</Label>
-                  <Input type="number" min={1} placeholder="∞" />
                 </TextField>
               </div>
               <TextField value={form.mime} onChange={(mime) => set({ mime })}>

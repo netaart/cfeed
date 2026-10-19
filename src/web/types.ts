@@ -54,11 +54,10 @@ export type AppSummary = {
 export type AppConfig = {
   slug: string
   name: string | null
-  allowed_origins: string[]
+  allowed_domains: string[]
   max_files: number | null
   max_file_bytes: number | null
   allowed_mime: string[] | null
-  retention_days: number | null
   status: 'active' | 'disabled'
 }
 
