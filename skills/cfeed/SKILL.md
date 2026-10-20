@@ -5,7 +5,7 @@ description: Read and triage feedback in cfeed via its HTTP API. Use when asked 
 
 # cfeed
 
-Base URL: `{{BASE_URL}}`. Send `Authorization: Bearer $CFEED_KEY` on every call below (a `ck_…` key from the user). A key may be pinned to one app and may be read-only: `401` means a bad key, `403 forbidden` means outside the key's app or scope. Errors are `{"error":{"code","message"}}`; the message says what to fix.
+Needs two environment variables from the user: `CFEED_BASE_URL` (e.g. `https://cfeed.neta.art`, no trailing slash) and `CFEED_KEY` (a `ck_…` key). Send `Authorization: Bearer $CFEED_KEY` on every call below. A key may be pinned to one app and may be read-only: `401` means a bad key, `403 forbidden` means outside the key's app or scope. Errors are `{"error":{"code","message"}}`; the message says what to fix.
 
 ## Read
 
@@ -44,11 +44,11 @@ Each item: `id`, `app`, `content`, `extra` (app-defined JSON), `status`, `tags`,
 ## Examples
 
 ```bash
-curl -s -H "Authorization: Bearer $CFEED_KEY" "{{BASE_URL}}/api/v1/feedback?app=memos&x.type=bug&limit=50"
+curl -s -H "Authorization: Bearer $CFEED_KEY" "$CFEED_BASE_URL/api/v1/feedback?app=memos&x.type=bug&limit=50"
 
 curl -s -X PATCH -H "Authorization: Bearer $CFEED_KEY" -H 'content-type: application/json' \
   -d '{"status":"resolved","tags":["sync"],"note":"fixed in 1.4.3"}' \
-  "{{BASE_URL}}/api/v1/feedback/<id>"
+  "$CFEED_BASE_URL/api/v1/feedback/<id>"
 ```
 
 Submitting needs no key: `POST /api/v1/feedback` with JSON `{"app","content","extra"}`.

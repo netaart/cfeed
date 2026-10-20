@@ -32,8 +32,7 @@ Layout:
 
 ```
 src/worker/
-  index.ts               # route mounting, `/` info, `/skills.md`, uniform error format
-  skill.md               # Agent Skill for the read/triage API, served at /skills.md
+  index.ts               # route mounting, `/` info, `/skill.md`, uniform error format
   routes/submit.ts       # POST /api/v1/feedback (anonymous)
   routes/query.ts        # /api/v1/feedback*, /attachments/:id, /stats, /apps
   routes/admin.ts        # /api/admin/login|logout|me|keys*|apps*
@@ -45,6 +44,7 @@ src/worker/
   lib/id.ts              # ULID, key generation, sha256 / hmac / constant-time compare
 src/web/                 # admin SPA: React 19 + HeroUI v3 + Tailwind v4, Chinese/English UI
 dashboard/index.html     # SPA entry, served at /dashboard/
+skills/cfeed/SKILL.md    # Agent Skill for the read/triage API (npx skills add, /skill.md)
 migrations/0001_init.sql
 ```
 
@@ -190,9 +190,9 @@ List filters:
 | PUT | `/api/admin/apps/:slug` | Create or replace: `name`, `allowed_domains` (hostnames or `*.host`; full URLs are reduced to their host, IDNs to punycode), `max_files`, `max_file_bytes`, `allowed_mime` (exact types, `image/*`-style wildcards, or `*/*` to accept any type without checking; `null` = global default), `status` |
 | DELETE | `/api/admin/apps/:slug` | Remove the config only (defaults apply again); **feedback is kept** |
 
-### 4.4 Agent skill `GET /skills.md`
+### 4.4 Agent skill `GET /skill.md`
 
-Public, no auth. Serves `src/worker/skill.md`, an [Agent Skill](https://agentskills.io) (`name` + `description` frontmatter) covering list/filter, detail, attachments, stats, apps, `PATCH` and `DELETE`, with `{{BASE_URL}}` replaced by the request origin. The console shows the URL next to every newly issued key, so an agent needs only those two values. Keep it in sync when the query API changes.
+`skills/cfeed/SKILL.md` is the single source: installable with `npx skills add netaart/cfeed`, and served verbatim (public, no auth) at `/skill.md`. It covers list/filter, detail, attachments, stats, apps, `PATCH` and `DELETE`, and reads two environment variables, `CFEED_BASE_URL` and `CFEED_KEY`. The console shows both next to every newly issued key. Keep it in sync when the query API changes.
 
 Bulk-deleting an app's feedback is planned for P2 (`DELETE /api/admin/feedback?app=…`).
 

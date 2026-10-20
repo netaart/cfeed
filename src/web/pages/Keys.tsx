@@ -194,7 +194,7 @@ function IssueKeyModal({ isOpen, onOpenChange, onCreated }: { isOpen: boolean; o
                 </div>
                 <div>
                   <div className="mb-1 text-xs text-muted">{t('keys.agent')}</div>
-                  <CodeBlock>{`Skill: ${origin}/skills.md\nCFEED_KEY=${created.key}`}</CodeBlock>
+                  <CodeBlock>{`npx skills add netaart/cfeed   # or ${origin}/skill.md\nCFEED_BASE_URL=${origin}\nCFEED_KEY=${created.key}`}</CodeBlock>
                 </div>
               </div>
             ) : (
