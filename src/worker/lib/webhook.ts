@@ -41,16 +41,9 @@ function summary(fb: WebhookFeedback, links: { dashboard: string }): string {
   const ctx = fb.context
   const env = [ctx.ua_os, ctx.ua_browser].filter(Boolean).join(' ') || ctx.ua_device
   const where = [ctx.country, ctx.city].filter(Boolean).join(' ')
-  const extra = Object.keys(fb.extra).length ? JSON.stringify(fb.extra) : ''
-  return [
-    `[cfeed] ${fb.app}`,
-    fb.content.length > 1000 ? fb.content.slice(0, 1000) + '…' : fb.content,
-    extra.length > 500 ? extra.slice(0, 500) + '…' : extra,
-    [env, where, fb.attachments.length ? `📎 ${fb.attachments.length}` : ''].filter(Boolean).join(' · '),
-    links.dashboard
-  ]
-    .filter(Boolean)
-    .join('\n')
+  const meta = [env, where, fb.attachments.length ? `📎 ${fb.attachments.length}` : ''].filter(Boolean).join(' · ')
+  const content = fb.content.length > 1000 ? fb.content.slice(0, 1000) + '…' : fb.content
+  return `${content}\n\n${[meta, links.dashboard].filter(Boolean).join('\n')}`
 }
 
 async function hmac(key: string, msg: string, out: 'hex' | 'base64'): Promise<string> {

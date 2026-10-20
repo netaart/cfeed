@@ -212,7 +212,7 @@ The body depends on the URL:
 | `discord.com/api/webhooks/…` | `{"content"}` (max 2000 chars) | Not used |
 | Anything else | `{"event","feedback","links"}` | `X-Cfeed-Signature: sha256=HMAC_SHA256(secret, "<X-Cfeed-Timestamp>.<raw body>")` |
 
-The text form is `[cfeed] <app>`, the content (≤1000 chars), `extra` as JSON (≤500 chars), device · location · attachment count, and the dashboard link. The JSON event is `feedback.created` (or `webhook.test`) and carries `id, app, content, extra, status, created_at, attachments[{id, filename, content_type, size}], context` (request context without `ip_hash`), with headers `X-Cfeed-Event` and `X-Cfeed-Delivery` (the feedback id). Chat platforms report failures as HTTP 200 with `code`/`errcode` in the body; those count as failures too. `links.dashboard` is `/dashboard/#feedback/<id>`, which opens that item directly.
+The text form is the content (≤1000 chars), a blank line, then device · location · attachment count and the dashboard link. App name and `extra` are left out of chat messages; the link opens the full item. The JSON event is `feedback.created` (or `webhook.test`) and carries `id, app, content, extra, status, created_at, attachments[{id, filename, content_type, size}], context` (request context without `ip_hash`), with headers `X-Cfeed-Event` and `X-Cfeed-Delivery` (the feedback id). Chat platforms report failures as HTTP 200 with `code`/`errcode` in the body; those count as failures too. `links.dashboard` is `/dashboard/#feedback/<id>`, which opens that item directly.
 
 Bulk-deleting an app's feedback is planned for P2 (`DELETE /api/admin/feedback?app=…`).
 
