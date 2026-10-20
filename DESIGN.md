@@ -158,8 +158,9 @@ List filters:
 |---|---|---|
 | `app` | `app=memos-desktop,blog` | Comma-separated |
 | `status` `country` `ua_os` `ua_device` | `status=open,resolved` | Comma-separated. `spam` is hidden unless `status` is given |
-| `from` `to` | `2026-10-01` or a millisecond timestamp | Filters `created_at`; a date-only `to` is inclusive |
-| `q` | `crash` | `LIKE` match on `content` |
+| `from` `to` | `2026-10-01`, `2026-10-19T09:00:00+08:00`, or a millisecond timestamp | Filters `created_at`. `from` is inclusive; a date-only `to` covers that whole day, any other `to` is exclusive |
+| `tz` | `Asia/Shanghai` | IANA zone used to interpret date-only `from`/`to` (default UTC). The console sends exact ms bounds in the browser's zone |
+| `q` | `crash` | Substring match on `content` (`LIKE`, ASCII case-insensitive; `%` `_` escaped). The console searches as you type |
 | `x.<path>` | `x.version=1.4.2`, `x.device.model=iPhone15` | Filters on `extra` |
 | `has_attachments` | `1` or `0` | |
 | `limit` `cursor` | | Default 20, max 100. The cursor is base64 of the last row's `created_at:id` |
@@ -221,7 +222,7 @@ Bulk-deleting an app's feedback is planned for P2 (`DELETE /api/admin/feedback?a
 A React SPA built with [HeroUI v3](https://heroui.com) (React Aria + Tailwind v4). The UI is available in Chinese and English and follows the system dark mode. It has no auth logic of its own and relies entirely on the cookie set by `/api/admin/login`, which is also why `<img src="/api/v1/attachments/…">` works without extra handling.
 
 - Sign in with ADMIN_TOKEN.
-- **Feedback** (`#feedback`): stat cards; filter by app / status / content / extra (`type=bug version=1.4.2`); cursor pagination; a detail view with content, attachment previews, extra, and request context, plus resolved/spam marks, tags, note, and delete.
+- **Feedback** (`#feedback`): stat cards; filter by app / status / time (today, last 7/30 days, or a custom date range) / content / extra (`type=bug version=1.4.2`); cursor pagination; a detail view with content, attachment previews, extra, and request context, plus resolved/spam marks, tags, note, and delete.
 - **Apps** (`#apps`): every app seen with counts; create or edit configs (source domain allowlist, attachment limits, enable/disable); integration examples.
 - **API Keys** (`#keys`): issue (app scope and read/write; plaintext shown once) and revoke.
 

@@ -15,9 +15,10 @@ Needs two environment variables from the user: `CFEED_BASE_URL` (e.g. `https://c
 |---|---|
 | `app` | App names, comma-separated |
 | `status` | `open` (unmarked), `resolved`, `spam`, comma-separated. Omitted = everything except `spam` |
-| `q` | Substring of `content` |
+| `q` | Case-insensitive (ASCII) substring of `content`; `%` and `_` are literal |
 | `x.<path>=<value>` | Match the app's own `extra` JSON, e.g. `x.type=bug`, `x.device.model=Pixel%208`. Arrays match by contains. Up to 5, ANDed |
-| `from`, `to` | `YYYY-MM-DD` or ms timestamp; a `to` date is inclusive |
+| `from`, `to` | `created_at` bounds: ms timestamp, ISO 8601 with offset (`2026-10-19T09:00:00+08:00`), or `YYYY-MM-DD`. `from` is inclusive; a bare `to` date covers that whole day, any other `to` is exclusive |
+| `tz` | IANA zone for bare dates, e.g. `Asia/Shanghai`. Default UTC |
 | `country`, `ua_os`, `ua_device` | Request context; `ua_device` is `desktop`, `mobile`, `tablet`, `bot`, `cli`, or `unknown` |
 | `has_attachments` | `1` or `0` |
 | `limit` | Default 20, max 100 |
@@ -45,6 +46,8 @@ Each item: `id`, `app`, `content`, `extra` (app-defined JSON), `status`, `tags`,
 
 ```bash
 curl -s -H "Authorization: Bearer $CFEED_KEY" "$CFEED_BASE_URL/api/v1/feedback?app=memos&x.type=bug&limit=50"
+
+curl -s -H "Authorization: Bearer $CFEED_KEY" "$CFEED_BASE_URL/api/v1/feedback?q=crash&from=2026-10-01&to=2026-10-19&tz=Asia/Shanghai"
 
 curl -s -X PATCH -H "Authorization: Bearer $CFEED_KEY" -H 'content-type: application/json' \
   -d '{"status":"resolved","tags":["sync"],"note":"fixed in 1.4.3"}' \

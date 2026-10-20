@@ -23,12 +23,38 @@ type FeedbackRow = Record<string, unknown> & {
 const csv = (v?: string) => (v ? v.split(',').map((s) => s.trim()).filter(Boolean).slice(0, 20) : [])
 const placeholders = (n: number) => Array(n).fill('?').join(', ')
 
-function parseTime(v: string | undefined, name: string, endOfDay: boolean): number | null {
+function zoneOffsetMs(tz: string, utcMs: number): number {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-US', { timeZone: tz, hourCycle: 'h23', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric' })
+      .formatToParts(utcMs)
+      .map((p) => [p.type, Number(p.value)])
+  )
+  return Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second) - Math.floor(utcMs / 1000) * 1000
+}
+
+// Date-only values mean midnight in `tz` (default UTC); a date-only `to` covers that whole day.
+function parseTime(v: string | undefined, name: string, endOfDay: boolean, tz: string | undefined): number | null {
   if (!v) return null
   if (/^\d+$/.test(v)) return Number(v)
+  const day = v.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (day) {
+    let t = Date.UTC(+day[1], +day[2] - 1, +day[3] + (endOfDay ? 1 : 0))
+    if (tz) t -= zoneOffsetMs(tz, t - zoneOffsetMs(tz, t))
+    return t
+  }
   const t = Date.parse(v)
-  if (Number.isNaN(t)) fail(400, 'invalid_query', `${name} must be YYYY-MM-DD, ISO 8601, or a millisecond timestamp`)
-  return endOfDay && /^\d{4}-\d{2}-\d{2}$/.test(v) ? t + 86_400_000 : t
+  if (Number.isNaN(t)) fail(400, 'invalid_query', `${name} must be YYYY-MM-DD, ISO 8601 (e.g. 2026-10-19T09:00:00+08:00), or a millisecond timestamp`)
+  return t
+}
+
+function validTz(tz: string | undefined): string | undefined {
+  if (!tz) return undefined
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: tz })
+    return tz
+  } catch {
+    fail(400, 'invalid_query', `Unknown time zone "${tz}"; use an IANA name such as Asia/Shanghai`)
+  }
 }
 
 function scopeApps(auth: Auth, requested: string[]): string[] {
@@ -89,8 +115,9 @@ query.get('/feedback', requireAuth('read'), async (c) => {
   }
   if (!q.status) add(`status != 'spam'`)
 
-  const from = parseTime(q.from, 'from', false)
-  const to = parseTime(q.to, 'to', true)
+  const tz = validTz(q.tz)
+  const from = parseTime(q.from, 'from', false, tz)
+  const to = parseTime(q.to, 'to', true, tz)
   if (from !== null) add('created_at >= ?', from)
   if (to !== null) add('created_at < ?', to)
 

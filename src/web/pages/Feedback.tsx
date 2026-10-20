@@ -1,5 +1,6 @@
 import { ArrowsRotateRight, Paperclip, Sliders } from '@gravity-ui/icons'
-import { Alert, Button, Card, Chip, Drawer, Input, Label, SearchField, Spinner, Table, TextField } from '@heroui/react'
+import { getLocalTimeZone, today, type DateValue } from '@internationalized/date'
+import { Alert, Button, Card, Chip, DateField, DateRangePicker, Drawer, Input, Label, RangeCalendar, SearchField, Spinner, Table, TextField } from '@heroui/react'
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { api, errorMessage } from '../api'
 import { fmtShortTime, fmtTime, join } from '../format'
@@ -12,7 +13,18 @@ const ALL = '__all'
 const EVERYTHING = '__everything'
 const PAGE = 50
 
-type Filters = { app: string; status: string; q: string; x: string }
+type Range = { start: DateValue; end: DateValue }
+type Filters = { app: string; status: string; q: string; x: string; time: string; range: Range | null }
+
+const TIME_PRESETS = { today: 0, '7d': 6, '30d': 29 } as const
+const CUSTOM = 'custom'
+
+function timeBounds(f: Filters): { from?: number; to?: number } {
+  const tz = getLocalTimeZone()
+  if (f.time in TIME_PRESETS) return { from: today(tz).subtract({ days: TIME_PRESETS[f.time as keyof typeof TIME_PRESETS] }).toDate(tz).getTime() }
+  if (f.time === CUSTOM && f.range) return { from: f.range.start.toDate(tz).getTime(), to: f.range.end.add({ days: 1 }).toDate(tz).getTime() }
+  return {}
+}
 
 function buildQuery(f: Filters, cursor?: string | null): string {
   const p = new URLSearchParams()
@@ -20,6 +32,9 @@ function buildQuery(f: Filters, cursor?: string | null): string {
   if (f.status === EVERYTHING) p.set('status', STATUSES.join(','))
   else if (f.status !== ALL) p.set('status', f.status)
   if (f.q) p.set('q', f.q)
+  const { from, to } = timeBounds(f)
+  if (from !== undefined) p.set('from', String(from))
+  if (to !== undefined) p.set('to', String(to))
   for (const pair of f.x.split(/\s+/).filter(Boolean)) {
     const i = pair.indexOf('=')
     if (i > 0) p.set(`x.${pair.slice(0, i)}`, pair.slice(i + 1))
@@ -31,7 +46,7 @@ function buildQuery(f: Filters, cursor?: string | null): string {
 
 export function FeedbackPage() {
   const { t, lang } = useT()
-  const [filters, setFilters] = useState<Filters>({ app: ALL, status: ALL, q: '', x: '' })
+  const [filters, setFilters] = useState<Filters>({ app: ALL, status: ALL, q: '', x: '', time: ALL, range: null })
   const [qDraft, setQDraft] = useState('')
   const [xDraft, setXDraft] = useState('')
   const [apps, setApps] = useState<AppSummary[]>([])
@@ -76,6 +91,10 @@ export function FeedbackPage() {
   }, [filters.app])
 
   useEffect(() => void load(false), [filters])
+  useEffect(() => {
+    const id = setTimeout(() => setFilters((f) => (f.q === qDraft.trim() ? f : { ...f, q: qDraft.trim() })), 350)
+    return () => clearTimeout(id)
+  }, [qDraft])
   useEffect(loadStats, [loadStats])
   useEffect(() => {
     api<{ items: AppSummary[] }>('/api/v1/apps').then((r) => setApps(r.items), () => {})
@@ -102,7 +121,7 @@ export function FeedbackPage() {
     ...MARKS.map((s) => ({ label: t(`status.${s}`), value: stats?.by_status[s] ?? 0 }))
   ]
 
-  const activeFilters = [filters.app !== ALL, filters.status !== ALL, !!filters.x].filter(Boolean).length
+  const activeFilters = [filters.app !== ALL, filters.status !== ALL, !!filters.x, filters.time !== ALL].filter(Boolean).length
 
   const selects = (
     <>
@@ -124,6 +143,53 @@ export function FeedbackPage() {
           { id: EVERYTHING, label: t('status.everything') }
         ]}
       />
+      <SimpleSelect
+        className="w-full sm:w-36"
+        label={t('fb.time')}
+        value={filters.time}
+        onChange={(time) => set({ time })}
+        options={[
+          { id: ALL, label: t('time.all') },
+          { id: 'today', label: t('time.today') },
+          { id: '7d', label: t('time.7d') },
+          { id: '30d', label: t('time.30d') },
+          { id: CUSTOM, label: t('time.custom') }
+        ]}
+      />
+      {filters.time === CUSTOM && (
+        <DateRangePicker className="w-full sm:w-72" value={filters.range} onChange={(range) => set({ range })} maxValue={today(getLocalTimeZone())}>
+          <Label>{t('time.range')}</Label>
+          <DateField.Group fullWidth>
+            <DateField.Input slot="start">{(segment) => <DateField.Segment segment={segment} />}</DateField.Input>
+            <DateRangePicker.RangeSeparator />
+            <DateField.Input slot="end">{(segment) => <DateField.Segment segment={segment} />}</DateField.Input>
+            <DateField.Suffix>
+              <DateRangePicker.Trigger>
+                <DateRangePicker.TriggerIndicator />
+              </DateRangePicker.Trigger>
+            </DateField.Suffix>
+          </DateField.Group>
+          <DateRangePicker.Popover>
+            <RangeCalendar aria-label={t('time.range')}>
+              <RangeCalendar.Header>
+                <RangeCalendar.YearPickerTrigger>
+                  <RangeCalendar.YearPickerTriggerHeading />
+                  <RangeCalendar.YearPickerTriggerIndicator />
+                </RangeCalendar.YearPickerTrigger>
+                <RangeCalendar.NavButton slot="previous" />
+                <RangeCalendar.NavButton slot="next" />
+              </RangeCalendar.Header>
+              <RangeCalendar.Grid>
+                <RangeCalendar.GridHeader>{(day) => <RangeCalendar.HeaderCell>{day}</RangeCalendar.HeaderCell>}</RangeCalendar.GridHeader>
+                <RangeCalendar.GridBody>{(date) => <RangeCalendar.Cell date={date} />}</RangeCalendar.GridBody>
+              </RangeCalendar.Grid>
+              <RangeCalendar.YearPickerGrid>
+                <RangeCalendar.YearPickerGridBody>{({ year }) => <RangeCalendar.YearPickerCell year={year} />}</RangeCalendar.YearPickerGridBody>
+              </RangeCalendar.YearPickerGrid>
+            </RangeCalendar>
+          </DateRangePicker.Popover>
+        </DateRangePicker>
+      )}
     </>
   )
 
@@ -210,7 +276,7 @@ export function FeedbackPage() {
                   variant="tertiary"
                   onPress={() => {
                     setXDraft('')
-                    set({ app: ALL, status: ALL, x: '' })
+                    set({ app: ALL, status: ALL, x: '', time: ALL, range: null })
                   }}
                 >
                   {t('fb.reset')}
