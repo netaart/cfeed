@@ -148,6 +148,8 @@ type Form = {
   maxFileMb: string
   mime: string
   anyMime: boolean
+  webhookUrl: string
+  webhookSecret: string
 }
 
 function toForm(slug: string, c: AppConfig | null): Form {
@@ -159,7 +161,9 @@ function toForm(slug: string, c: AppConfig | null): Form {
     maxFiles: c?.max_files?.toString() ?? '',
     maxFileMb: c?.max_file_bytes ? String(+(c.max_file_bytes / 1024 / 1024).toFixed(2)) : '',
     mime: c?.allowed_mime?.filter((m) => m !== ANY_MIME).join(', ') ?? '',
-    anyMime: !!c?.allowed_mime?.includes(ANY_MIME)
+    anyMime: !!c?.allowed_mime?.includes(ANY_MIME),
+    webhookUrl: c?.webhook_url ?? '',
+    webhookSecret: c?.webhook_secret ?? ''
   }
 }
 
@@ -172,18 +176,23 @@ function AppConfigModal({
   onClose: () => void
   onSaved: () => void
 }) {
-  const { t } = useT()
+  const { t, lang } = useT()
   const [form, setForm] = useState<Form>(toForm('', null))
   const [pending, setPending] = useState(false)
+  const [testing, setTesting] = useState(false)
+  const [delivery, setDelivery] = useState<{ at: number | null; status: number | null; error: string | null }>({ at: null, status: null, error: null })
   const set = (patch: Partial<Form>) => setForm((f) => ({ ...f, ...patch }))
   const isNew = !editing?.slug
   const mobile = useIsMobile()
 
   useEffect(() => {
-    if (editing) setForm(toForm(editing.slug, editing.config))
+    if (!editing) return
+    setForm(toForm(editing.slug, editing.config))
+    const c = editing.config
+    setDelivery({ at: c?.webhook_last_at ?? null, status: c?.webhook_last_status ?? null, error: c?.webhook_last_error ?? null })
   }, [editing])
 
-  const save = async () => {
+  const save = async (close = true): Promise<boolean> => {
     const num = (v: string) => (v.trim() === '' ? null : Number(v))
     const mb = num(form.maxFileMb)
     setPending(true)
@@ -196,16 +205,37 @@ function AppConfigModal({
           allowed_domains: form.domains.split(/[\s,，]+/).filter(Boolean),
           max_files: num(form.maxFiles),
           max_file_bytes: mb === null ? null : Math.round(mb * 1024 * 1024),
-          allowed_mime: form.anyMime ? [ANY_MIME] : form.mime.trim() ? form.mime.split(/[,\s]+/).filter(Boolean) : null
+          allowed_mime: form.anyMime ? [ANY_MIME] : form.mime.trim() ? form.mime.split(/[,\s]+/).filter(Boolean) : null,
+          webhook_url: form.webhookUrl.trim() || null,
+          webhook_secret: form.webhookSecret.trim() || null
         }
       })
-      toast.success(t('common.saved'))
       onSaved()
-      onClose()
+      if (close) {
+        toast.success(t('common.saved'))
+        onClose()
+      }
+      return true
+    } catch (e) {
+      toast.danger(errorMessage(e))
+      return false
+    } finally {
+      setPending(false)
+    }
+  }
+
+  const testWebhook = async () => {
+    setTesting(true)
+    try {
+      if (!(await save(false))) return
+      const r = await api<{ ok: boolean; status: number; error: string | null }>(`/api/admin/apps/${encodeURIComponent(form.slug)}/webhook/test`, { method: 'POST' })
+      setDelivery({ at: Date.now(), status: r.status, error: r.error })
+      if (r.ok) toast.success(t('apps.webhookTestOk'))
+      else toast.danger(r.error ?? `HTTP ${r.status}`)
     } catch (e) {
       toast.danger(errorMessage(e))
     } finally {
-      setPending(false)
+      setTesting(false)
     }
   }
 
@@ -293,6 +323,28 @@ function AppConfigModal({
                   </Switch.Content>
                 </Switch>
                 {form.anyMime && <p className="text-xs text-muted">{t('apps.anyMimeHint')}</p>}
+              </div>
+              <div className="flex flex-col gap-3 border-t border-separator pt-4">
+                <TextField value={form.webhookUrl} onChange={(webhookUrl) => set({ webhookUrl })}>
+                  <Label>{t('apps.webhook')}</Label>
+                  <Input type="url" className="font-mono text-xs" placeholder="https://open.feishu.cn/open-apis/bot/v2/hook/…" />
+                  <Description>{t('apps.webhookHint')}</Description>
+                </TextField>
+                <TextField value={form.webhookSecret} onChange={(webhookSecret) => set({ webhookSecret })} isDisabled={!form.webhookUrl.trim()}>
+                  <Label>{t('apps.webhookSecret')}</Label>
+                  <Input className="font-mono text-xs" autoComplete="off" />
+                  <Description>{t('apps.webhookSecretHint')}</Description>
+                </TextField>
+                <div className="flex flex-wrap items-center gap-3">
+                  <Button size="sm" variant="secondary" isPending={testing} isDisabled={!form.webhookUrl.trim() || !SLUG.test(form.slug)} onPress={testWebhook}>
+                    {t('apps.webhookTest')}
+                  </Button>
+                  {delivery.at && (
+                    <span className={`text-xs [overflow-wrap:anywhere] ${delivery.error ? 'text-danger' : 'text-success'}`}>
+                      {t('apps.webhookLast')} {fmtTime(delivery.at, lang)} · {delivery.error ?? `HTTP ${delivery.status}`}
+                    </span>
+                  )}
+                </div>
               </div>
             </form>
           </Modal.Body>

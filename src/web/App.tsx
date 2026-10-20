@@ -11,7 +11,10 @@ import { LoginPage } from './pages/Login'
 const TABS = ['feedback', 'apps', 'keys'] as const
 const TAB_ICONS = { feedback: Comments, apps: Cubes3, keys: KeyIcon }
 type Tab = (typeof TABS)[number]
-const tabFromHash = (): Tab => (TABS as readonly string[]).includes(location.hash.slice(1)) ? (location.hash.slice(1) as Tab) : 'feedback'
+const tabFromHash = (): Tab => {
+  const h = location.hash.slice(1).split('/')[0]
+  return (TABS as readonly string[]).includes(h) ? (h as Tab) : 'feedback'
+}
 
 export function App() {
   const [authed, setAuthed] = useState<boolean | null>(null)

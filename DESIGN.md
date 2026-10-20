@@ -10,7 +10,7 @@ cfeed is an **anonymous**, general-purpose feedback service on Cloudflare Worker
 | Concept | Description |
 |---|---|
 | **app** | A plain string (e.g. `memos-desktop`) that groups feedback. It is not a credential. Defaults to `default`; unregistered apps are accepted as-is |
-| **App config** (optional) | Registered per app in the console: source domain allowlist, attachment limits, enable/disable. Apps without a config use global defaults |
+| **App config** (optional) | Registered per app in the console: source domain allowlist, attachment limits, webhook, enable/disable. Apps without a config use global defaults |
 | **API key** `ck_…` | **Only for reading and triaging feedback.** Issued in the console with two attributes: `app` (NULL = all apps) and `scope` (`read` or `write`). Only the hash is stored; the plaintext is shown once |
 | **ADMIN_TOKEN** | Worker secret with full privileges; used to sign in to the console and issue keys |
 
@@ -41,6 +41,7 @@ src/worker/
   lib/ua.ts              # minimal UA parser (no dependency)
   lib/extra.ts           # extra parsing/size limit and flattening into feedback_extra
   lib/config.ts          # app config merged with global defaults
+  lib/webhook.ts         # per-app webhook formatting, signing, delivery
   lib/id.ts              # ULID, key generation, sha256 / hmac / constant-time compare
 src/web/                 # admin SPA: React 19 + HeroUI v3 + Tailwind v4, Chinese/English UI
 dashboard/index.html     # SPA entry, served at /dashboard/
@@ -135,6 +136,7 @@ Processing:
 5. Write attachments to R2 **in parallel** under `{app}/{feedback_id}/{attachment_id}`. The user-supplied filename is **never** part of the key. R2 failure → `502`.
 6. Insert the feedback, its `feedback_extra` rows, and attachments in one transaction with `DB.batch([...])`.
 7. If step 6 fails, delete the R2 objects from step 5 and return `500`.
+8. If the app has a webhook, deliver it in `ctx.waitUntil` (see 4.5); the `201` does not wait for it.
 
 ### 4.2 Query (`Authorization: Bearer ck_… | ADMIN_TOKEN`, or the console cookie)
 
@@ -187,12 +189,30 @@ List filters:
 | Method | Path | Description |
 |---|---|---|
 | GET | `/api/admin/apps` | Registered configs |
-| PUT | `/api/admin/apps/:slug` | Create or replace: `name`, `allowed_domains` (hostnames or `*.host`; full URLs are reduced to their host, IDNs to punycode), `max_files`, `max_file_bytes`, `allowed_mime` (exact types, `image/*`-style wildcards, or `*/*` to accept any type without checking; `null` = global default), `status` |
+| PUT | `/api/admin/apps/:slug` | Create or replace: `name`, `allowed_domains` (hostnames or `*.host`; full URLs are reduced to their host, IDNs to punycode), `max_files`, `max_file_bytes`, `webhook_url` (https), `webhook_secret`, `allowed_mime` (exact types, `image/*`-style wildcards, or `*/*` to accept any type without checking; `null` = global default), `status` |
+| POST | `/api/admin/apps/:slug/webhook/test` | Deliver a `webhook.test` event now and return `{ok, status, error}` |
 | DELETE | `/api/admin/apps/:slug` | Remove the config only (defaults apply again); **feedback is kept** |
 
 ### 4.4 Agent skill `GET /skill.md`
 
 `skills/cfeed/SKILL.md` is the single source: installable with `npx skills add netaart/cfeed`, and served verbatim (public, no auth) at `/skill.md`. It covers list/filter, detail, attachments, stats, apps, `PATCH` and `DELETE`, and reads two environment variables, `CFEED_BASE_URL` and `CFEED_KEY`. The console shows both next to every newly issued key. Keep it in sync when the query API changes.
+
+### 4.5 Webhooks
+
+Each app config may set `webhook_url` (https only) and an optional `webhook_secret`. After every accepted submission the Worker POSTs once, with a 10 s timeout and no retry; the outcome is stored in `apps.webhook_last_at / webhook_last_status / webhook_last_error` (status `0` = network error) and shown in the console next to a "save and send test" button.
+
+The body depends on the URL:
+
+| URL | Body | Secret |
+|---|---|---|
+| `open.feishu.cn` / `open.larksuite.com` `/open-apis/bot/…` | `{"msg_type":"text","content":{"text"}}` | Feishu signature: `timestamp` + `sign` in the body |
+| `oapi.dingtalk.com` | `{"msgtype":"text","text":{"content"}}` | DingTalk signature: `timestamp` + `sign` query params |
+| `qyapi.weixin.qq.com` | `{"msgtype":"text","text":{"content"}}` | Not used |
+| `hooks.slack.com` | `{"text"}` | Not used |
+| `discord.com/api/webhooks/…` | `{"content"}` (max 2000 chars) | Not used |
+| Anything else | `{"event","feedback","links"}` | `X-Cfeed-Signature: sha256=HMAC_SHA256(secret, "<X-Cfeed-Timestamp>.<raw body>")` |
+
+The text form is `[cfeed] <app>`, the content (≤1000 chars), `extra` as JSON (≤500 chars), device · location · attachment count, and the dashboard link. The JSON event is `feedback.created` (or `webhook.test`) and carries `id, app, content, extra, status, created_at, attachments[{id, filename, content_type, size}], context` (request context without `ip_hash`), with headers `X-Cfeed-Event` and `X-Cfeed-Delivery` (the feedback id). Chat platforms report failures as HTTP 200 with `code`/`errcode` in the body; those count as failures too. `links.dashboard` is `/dashboard/#feedback/<id>`, which opens that item directly.
 
 Bulk-deleting an app's feedback is planned for P2 (`DELETE /api/admin/feedback?app=…`).
 
@@ -259,7 +279,7 @@ Known tradeoff: anyone can write under any app name, including made-up ones. Tha
 |---|---|
 | **P0** | Anonymous submit, query API, key issuance/revocation, app configs, request context, rate limiting |
 | **P1** | Admin console, `/api/v1/stats` (shipped together with P0) |
-| **P2** | Bulk delete per app, CSV/NDJSON export, new-feedback webhooks, Turnstile, FTS5 |
+| **P2** | Bulk delete per app, CSV/NDJSON export, webhook retries, Turnstile, FTS5 |
 
 ## 10. Local development and deployment
 

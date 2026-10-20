@@ -3,6 +3,7 @@ import { deleteCookie, setSignedCookie } from 'hono/cookie'
 import type { AppEnv } from '../types'
 import { ADMIN_COOKIE, adminToken, requireAuth } from '../lib/auth'
 import { APP_SLUG, appRowToJson, normalizeDomain, type AppRow } from '../lib/config'
+import { deliverWebhook, normalizeWebhookUrl } from '../lib/webhook'
 import { fail } from '../lib/http'
 import { hmacHex, newApiKey, safeEqual, sha256Hex, ulid } from '../lib/id'
 
@@ -104,12 +105,15 @@ admin.put('/apps/:slug', async (c) => {
     mime = b.allowed_mime
   }
 
+  const webhookUrl = b.webhook_url ? normalizeWebhookUrl(String(b.webhook_url)) ?? fail(400, 'invalid_field', 'webhook_url must be an https:// URL') : null
+  const webhookSecret = webhookUrl && b.webhook_secret ? String(b.webhook_secret).trim().slice(0, 200) || null : null
+
   const now = Date.now()
   const row = await c.env.DB.prepare(
-    `INSERT INTO apps (slug, name, allowed_domains, max_files, max_file_bytes, allowed_mime, status, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO apps (slug, name, allowed_domains, max_files, max_file_bytes, allowed_mime, status, webhook_url, webhook_secret, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(slug) DO UPDATE SET name = excluded.name, allowed_domains = excluded.allowed_domains, max_files = excluded.max_files, max_file_bytes = excluded.max_file_bytes,
-       allowed_mime = excluded.allowed_mime, status = excluded.status, updated_at = excluded.updated_at
+       allowed_mime = excluded.allowed_mime, status = excluded.status, webhook_url = excluded.webhook_url, webhook_secret = excluded.webhook_secret, updated_at = excluded.updated_at
      RETURNING *`
   )
     .bind(
@@ -120,11 +124,29 @@ admin.put('/apps/:slug', async (c) => {
       optInt(b.max_file_bytes, 'max_file_bytes', 1, MAX_UPLOAD_BYTES),
       mime ? JSON.stringify(mime) : null,
       status,
+      webhookUrl,
+      webhookSecret,
       now,
       now
     )
     .first<AppRow>()
   return c.json(appRowToJson(row!))
+})
+
+admin.post('/apps/:slug/webhook/test', async (c) => {
+  const slug = c.req.param('slug')
+  const row = await c.env.DB.prepare('SELECT webhook_url, webhook_secret FROM apps WHERE slug = ?').bind(slug).first<AppRow>()
+  if (!row?.webhook_url) fail(404, 'not_found', `App "${slug}" has no webhook_url configured`)
+  const now = Date.now()
+  const result = await deliverWebhook(
+    c.env,
+    slug,
+    { url: row.webhook_url, secret: row.webhook_secret },
+    'webhook.test',
+    { id: 'test', app: slug, content: 'cfeed webhook test', extra: {}, status: 'open', created_at: now, attachments: [], context: {} },
+    new URL(c.req.url).origin
+  )
+  return c.json({ ok: !result.error, ...result })
 })
 
 admin.delete('/apps/:slug', async (c) => {

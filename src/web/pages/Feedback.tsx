@@ -40,7 +40,11 @@ export function FeedbackPage() {
   const [cursor, setCursor] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [selected, setSelected] = useState<string | null>(null)
+  const [selected, setSelectedState] = useState<string | null>(() => location.hash.match(/^#feedback\/([0-9A-Z]{26})$/)?.[1] ?? null)
+  const setSelected = (id: string | null) => {
+    history.replaceState(null, '', id ? `#feedback/${id}` : '#feedback')
+    setSelectedState(id)
+  }
   const [filtersOpen, setFiltersOpen] = useState(false)
   const mobile = useIsMobile()
   const deviceLabel = useDeviceLabel()

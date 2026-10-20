@@ -52,6 +52,11 @@ export type AppConfig = {
   max_files: number | null
   max_file_bytes: number | null
   allowed_mime: string[] | null
+  webhook_url: string | null
+  webhook_secret: string | null
+  webhook_last_at: number | null
+  webhook_last_status: number | null
+  webhook_last_error: string | null
   status: 'active' | 'disabled'
 }
 

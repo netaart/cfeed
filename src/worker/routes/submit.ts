@@ -6,6 +6,7 @@ import { requestContext } from '../lib/context'
 import { extraIndexEntries, parseExtra } from '../lib/extra'
 import { ApiError, fail, intVar } from '../lib/http'
 import { hmacHex, ulid } from '../lib/id'
+import { deliverWebhook } from '../lib/webhook'
 
 const submit = new Hono<AppEnv>()
 
@@ -157,6 +158,22 @@ submit.post('/feedback', async (c) => {
     if (err instanceof ApiError) throw err
     console.error('d1 insert failed', err)
     fail(500, 'db_error', 'Failed to save feedback')
+  }
+
+  if (cfg.webhook) {
+    const { ip_hash: _ip, ...context } = ctx
+    c.executionCtx.waitUntil(
+      deliverWebhook(env, app, cfg.webhook, 'feedback.created', {
+        id,
+        app,
+        content,
+        extra,
+        status: 'open',
+        created_at: now,
+        attachments: attachments.map((a) => ({ id: a.id, filename: a.filename, content_type: a.content_type, size: a.file.size })),
+        context
+      }, new URL(c.req.url).origin)
+    )
   }
 
   return c.json(

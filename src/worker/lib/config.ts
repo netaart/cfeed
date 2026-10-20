@@ -11,6 +11,11 @@ export type AppRow = {
   max_file_bytes: number | null
   allowed_mime: string | null
   status: 'active' | 'disabled'
+  webhook_url: string | null
+  webhook_secret: string | null
+  webhook_last_at: number | null
+  webhook_last_status: number | null
+  webhook_last_error: string | null
   created_at: number
   updated_at: number
 }
@@ -23,6 +28,7 @@ export type AppConfig = {
   maxFiles: number
   maxFileBytes: number
   allowedMime: string[]
+  webhook: { url: string; secret: string | null } | null
 }
 
 export function defaultMime(env: Bindings): string[] {
@@ -38,7 +44,8 @@ export async function loadAppConfig(env: Bindings, slug: string): Promise<AppCon
     allowedDomains: row ? JSON.parse(row.allowed_domains) : [],
     maxFiles: row?.max_files ?? intVar(env.DEFAULT_MAX_FILES, 5),
     maxFileBytes: row?.max_file_bytes ?? intVar(env.DEFAULT_MAX_FILE_BYTES, 10 * 1024 * 1024),
-    allowedMime: row?.allowed_mime ? JSON.parse(row.allowed_mime) : defaultMime(env)
+    allowedMime: row?.allowed_mime ? JSON.parse(row.allowed_mime) : defaultMime(env),
+    webhook: row?.webhook_url ? { url: row.webhook_url, secret: row.webhook_secret } : null
   }
 }
 

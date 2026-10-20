@@ -6,6 +6,7 @@ Anonymous, general-purpose feedback service on Cloudflare Workers + D1 + R2, wit
 - **Server-side context**: parsed UA, client hints, country/city/timezone/ASN, language, referer, hashed IP.
 - **Custom fields**: free-form `extra` JSON, no schema; every leaf is indexed so `x.<path>=value` filters stay fast.
 - **Keyed reads**: `ck_…` keys issued in the console, scoped to one app or all, read or write.
+- **Webhooks**: per-app notification on every submission; Feishu/Lark, DingTalk, WeCom, Slack and Discord bots get a text message, anything else a signed JSON event.
 - **Admin console**: HeroUI v3, Chinese and English UI, dark mode.
 - **Agent skill**: [`skills/cfeed`](skills/cfeed/SKILL.md) covers the read/triage API. Install with `npx skills add netaart/cfeed` (also served at `/skill.md`), then set `CFEED_BASE_URL` and `CFEED_KEY`.
 
