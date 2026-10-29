@@ -193,6 +193,10 @@ function IssueKeyModal({ isOpen, onOpenChange, onCreated }: { isOpen: boolean; o
                   <CodeBlock>{`curl -H 'Authorization: Bearer ${created.key}' \\\n  '${origin}/api/v1/feedback?status=open&limit=20'`}</CodeBlock>
                 </div>
                 <div>
+                  <div className="mb-1 text-xs text-muted">{t('keys.console')}</div>
+                  <CodeBlock>{`${origin}/dashboard/`}</CodeBlock>
+                </div>
+                <div>
                   <div className="mb-1 text-xs text-muted">{t('keys.agent')}</div>
                   <CodeBlock>{`npx skills add netaart/cfeed   # or ${origin}/skill.md\nCFEED_BASE_URL=${origin}\nCFEED_KEY=${created.key}`}</CodeBlock>
                 </div>

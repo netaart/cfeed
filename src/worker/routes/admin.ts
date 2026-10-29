@@ -1,11 +1,11 @@
 import { Hono } from 'hono'
 import { deleteCookie, setSignedCookie } from 'hono/cookie'
 import type { AppEnv } from '../types'
-import { ADMIN_COOKIE, adminToken, requireAuth } from '../lib/auth'
+import { ADMIN_COOKIE, adminToken, credentialAuth, requireAuth, sessionValue } from '../lib/auth'
 import { APP_SLUG, appRowToJson, normalizeDomain, type AppRow } from '../lib/config'
 import { deliverWebhook, normalizeWebhookUrl } from '../lib/webhook'
 import { fail } from '../lib/http'
-import { hmacHex, newApiKey, safeEqual, sha256Hex, ulid } from '../lib/id'
+import { hmacHex, newApiKey, sha256Hex, ulid } from '../lib/id'
 
 const admin = new Hono<AppEnv>()
 const MIME = /^(\*\/\*|[\w.+-]+\/([\w.+-]+|\*))$/
@@ -17,10 +17,9 @@ admin.post('/login', async (c) => {
   if (!success) fail(429, 'rate_limited', 'Too many login attempts, try again later')
 
   const body = await c.req.json().catch(() => ({}))
-  if (typeof body.token !== 'string' || !(await safeEqual(body.token, adminToken(c)))) {
-    fail(401, 'unauthorized', 'Invalid admin token')
-  }
-  await setSignedCookie(c, ADMIN_COOKIE, 'admin', adminToken(c), {
+  const auth = typeof body.token === 'string' ? await credentialAuth(c, body.token.trim()) : null
+  if (!auth) fail(401, 'unauthorized', 'Invalid ADMIN_TOKEN or API key (or the key was revoked)')
+  await setSignedCookie(c, ADMIN_COOKIE, sessionValue(auth), adminToken(c), {
     httpOnly: true,
     secure: new URL(c.req.url).protocol === 'https:',
     sameSite: 'Strict',

@@ -13,31 +13,37 @@ export function adminToken(c: Context<AppEnv>): string {
   return token
 }
 
-type KeyRow = { id: string; app: string | null; scope: 'read' | 'write'; last_used_at: number | null }
+type KeyRow = { id: string; name: string; app: string | null; scope: 'read' | 'write'; last_used_at: number | null }
+
+async function activeKey(c: Context<AppEnv>, column: 'key_hash' | 'id', value: string): Promise<Auth | null> {
+  const row = await c.env.DB.prepare(`SELECT id, name, app, scope, last_used_at FROM api_keys WHERE ${column} = ? AND revoked_at IS NULL`)
+    .bind(value)
+    .first<KeyRow>()
+  if (!row) return null
+  const now = Date.now()
+  if (!row.last_used_at || now - row.last_used_at > TOUCH_INTERVAL_MS) {
+    c.executionCtx.waitUntil(c.env.DB.prepare('UPDATE api_keys SET last_used_at = ? WHERE id = ?').bind(now, row.id).run())
+  }
+  return { kind: 'key', id: row.id, name: row.name, app: row.app, scope: row.scope }
+}
+
+/** Resolves a raw credential (ADMIN_TOKEN or ck_ key) to an identity. */
+export async function credentialAuth(c: Context<AppEnv>, credential: string): Promise<Auth | null> {
+  if (await safeEqual(credential, adminToken(c))) return { kind: 'admin' }
+  return credential.startsWith('ck_') ? activeKey(c, 'key_hash', await sha256Hex(credential)) : null
+}
+
+// The session cookie holds "admin" or "key:<id>", signed with ADMIN_TOKEN. Key sessions are re-checked
+// against api_keys on every request, so revoking a key ends its console sessions immediately.
+export const sessionValue = (auth: Auth) => (auth.kind === 'admin' ? 'admin' : `key:${auth.id}`)
 
 async function resolveAuth(c: Context<AppEnv>): Promise<Auth | null> {
-  const token = adminToken(c)
   const bearer = c.req.header('authorization')?.match(/^Bearer\s+(.+)$/i)?.[1]?.trim()
-
-  if (bearer) {
-    if (await safeEqual(bearer, token)) return { kind: 'admin' }
-    if (!bearer.startsWith('ck_')) return null
-    const row = await c.env.DB.prepare(
-      'SELECT id, app, scope, last_used_at FROM api_keys WHERE key_hash = ? AND revoked_at IS NULL'
-    )
-      .bind(await sha256Hex(bearer))
-      .first<KeyRow>()
-    if (!row) return null
-    const now = Date.now()
-    if (!row.last_used_at || now - row.last_used_at > TOUCH_INTERVAL_MS) {
-      c.executionCtx.waitUntil(
-        c.env.DB.prepare('UPDATE api_keys SET last_used_at = ? WHERE id = ?').bind(now, row.id).run()
-      )
-    }
-    return { kind: 'key', id: row.id, app: row.app, scope: row.scope }
-  }
-
-  return (await getSignedCookie(c, token, ADMIN_COOKIE)) === 'admin' ? { kind: 'admin' } : null
+  if (bearer) return credentialAuth(c, bearer)
+  const session = await getSignedCookie(c, adminToken(c), ADMIN_COOKIE)
+  if (session === 'admin') return { kind: 'admin' }
+  if (typeof session === 'string' && session.startsWith('key:')) return activeKey(c, 'id', session.slice(4))
+  return null
 }
 
 export function requireAuth(level: 'read' | 'write' | 'admin'): MiddlewareHandler<AppEnv> {

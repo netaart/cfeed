@@ -97,6 +97,11 @@ async function loadScoped(c: { env: AppEnv['Bindings'] }, auth: Auth, id: string
   return row
 }
 
+query.get('/me', requireAuth('read'), (c) => {
+  const auth = c.get('auth')
+  return c.json(auth.kind === 'admin' ? { kind: 'admin' } : { kind: 'key', name: auth.name, app: auth.app, scope: auth.scope })
+})
+
 query.get('/feedback', requireAuth('read'), async (c) => {
   const q = c.req.query()
   const where: string[] = []

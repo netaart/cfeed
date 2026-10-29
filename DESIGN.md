@@ -11,7 +11,7 @@ cfeed is an **anonymous**, general-purpose feedback service on Cloudflare Worker
 |---|---|
 | **app** | A plain string (e.g. `memos-desktop`) that groups feedback. It is not a credential. Defaults to `default`; unregistered apps are accepted as-is |
 | **App config** (optional) | Registered per app in the console: source domain allowlist, attachment limits, webhook, enable/disable. Apps without a config use global defaults |
-| **API key** `ck_…` | **Only for reading and triaging feedback.** Issued in the console with two attributes: `app` (NULL = all apps) and `scope` (`read` or `write`). Only the hash is stored; the plaintext is shown once |
+| **API key** `ck_…` | **Only for reading and triaging feedback**, via the API or by signing in to the console. Issued in the console with two attributes: `app` (NULL = all apps) and `scope` (`read` or `write`). Only the hash is stored; the plaintext is shown once |
 | **ADMIN_TOKEN** | Worker secret with full privileges; used to sign in to the console and issue keys |
 
 ## 2. Architecture
@@ -144,6 +144,7 @@ A key scoped to one app is **forced** into that app; requesting any other `app` 
 
 | Method | Path | Scope | Description |
 |---|---|---|---|
+| GET | `/api/v1/me` | read | Current identity: `{kind:"admin"}` or `{kind:"key", name, app, scope}` |
 | GET | `/api/v1/feedback` | read | List |
 | GET | `/api/v1/feedback/:id` | read | Detail, including attachments |
 | GET | `/api/v1/attachments/:id` | read | Stream an attachment from R2 |
@@ -173,9 +174,9 @@ List filters:
 
 | Method | Path | Description |
 |---|---|---|
-| POST | `/api/admin/login` | Body `{ token }`; sets a signed HttpOnly cookie (SameSite=Strict, 7 days). Rate-limited per IP |
+| POST | `/api/admin/login` | Body `{ token }` = ADMIN_TOKEN or a `ck_…` key; sets a signed HttpOnly cookie (SameSite=Strict, 7 days) holding `admin` or `key:<id>`. Key sessions are re-checked against `api_keys` on every request, so revoking a key ends its sessions. Rate-limited per IP |
 | POST | `/api/admin/logout` | Clears the cookie |
-| GET | `/api/admin/me` | Session check |
+| GET | `/api/admin/me` | Admin session check |
 
 **Keys**
 
@@ -221,7 +222,7 @@ Bulk-deleting an app's feedback is planned for P2 (`DELETE /api/admin/feedback?a
 
 A React SPA built with [HeroUI v3](https://heroui.com) (React Aria + Tailwind v4). The UI is available in Chinese and English and follows the system dark mode. It has no auth logic of its own and relies entirely on the cookie set by `/api/admin/login`, which is also why `<img src="/api/v1/attachments/…">` works without extra handling.
 
-- Sign in with ADMIN_TOKEN.
+- Sign in with ADMIN_TOKEN (everything) or a `ck_…` key. A key session sees only the **Feedback** tab, limited to its app (the app filter is hidden for app-pinned keys), and a `read` key gets a read-only detail view without marks, edits, or delete. The header shows the key's app and scope. All limits are enforced by the API; the UI only mirrors them.
 - **Feedback** (`#feedback`): stat cards; filter by app / status / time (today, last 7/30 days, or a custom date range) / content / extra (`type=bug version=1.4.2`); cursor pagination; a detail view with content, attachment previews, extra, and request context, plus resolved/spam marks, tags, note, and delete.
 - **Apps** (`#apps`): every app seen with counts; create or edit configs (source domain allowlist, attachment limits, enable/disable); integration examples.
 - **API Keys** (`#keys`): issue (app scope and read/write; plaintext shown once) and revoke.

@@ -15,9 +15,9 @@ const zh = {
   'action.copied': '已复制',
   'action.loadMore': '加载更多',
   'action.close': '关闭',
-  'login.title': '登录管理后台',
-  'login.desc': '输入部署时设置的 ADMIN_TOKEN',
-  'login.token': '管理员 Token',
+  'login.title': '登录 cfeed',
+  'login.desc': '输入 ADMIN_TOKEN 或 API Key（ck_…）。Key 只能看到它被授权的应用，只读 Key 不能修改。',
+  'login.token': 'ADMIN_TOKEN 或 API Key',
   'login.submit': '登录',
   'common.all': '全部',
   'common.none': '暂无数据',
@@ -125,6 +125,7 @@ const zh = {
   'keys.revokeConfirm': '吊销后使用该 key 的请求会立即失败。',
   'keys.secretOnce': '请立即复制保存，此 key 只显示这一次。',
   'keys.usage': '用法',
+  'keys.console': '后台：用这个 Key 登录，只能看到它授权范围内的反馈',
   'keys.agent': '交给 Agent：安装 skill 并设置这两个环境变量'
 }
 
@@ -145,9 +146,9 @@ const en: Record<Key, string> = {
   'action.copied': 'Copied',
   'action.loadMore': 'Load more',
   'action.close': 'Close',
-  'login.title': 'Sign in to admin',
-  'login.desc': 'Enter the ADMIN_TOKEN configured for this deployment',
-  'login.token': 'Admin token',
+  'login.title': 'Sign in to cfeed',
+  'login.desc': 'Enter the ADMIN_TOKEN or an API key (ck_…). A key only sees the apps it is scoped to, and a read-only key cannot make changes.',
+  'login.token': 'ADMIN_TOKEN or API key',
   'login.submit': 'Sign in',
   'common.all': 'All',
   'common.none': 'No data',
@@ -255,6 +256,7 @@ const en: Record<Key, string> = {
   'keys.revokeConfirm': 'Requests using this key will fail immediately.',
   'keys.secretOnce': 'Copy it now — this key is shown only once.',
   'keys.usage': 'Usage',
+  'keys.console': 'Console: sign in with this key to see only the feedback it is scoped to',
   'keys.agent': 'For an agent: install the skill and set these two environment variables'
 }
 

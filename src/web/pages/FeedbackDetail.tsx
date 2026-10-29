@@ -5,6 +5,7 @@ import { api, errorMessage } from '../api'
 import { fmtBytes, fmtTime, join } from '../format'
 import { useT } from '../i18n'
 import { MARKS, type Feedback, type FeedbackDetail, type Status } from '../types'
+import { canWrite, useMe } from '../session'
 import { CodeBlock, ConfirmButton, KV, StatusChip, useDeviceLabel, useIsMobile } from '../ui'
 
 type Props = {
@@ -24,6 +25,7 @@ export function FeedbackDetailModal({ id, onClose, onChanged, onDeleted }: Props
   const [saving, setSaving] = useState(false)
   const mobile = useIsMobile()
   const deviceLabel = useDeviceLabel()
+  const writable = canWrite(useMe())
 
   useEffect(() => {
     if (!id) return
@@ -177,37 +179,46 @@ export function FeedbackDetailModal({ id, onClose, onChanged, onDeleted }: Props
                   {fb.ua && <p className="mt-3 font-mono text-xs break-all text-muted">{fb.ua}</p>}
                 </section>
 
-                <section className="flex flex-col gap-3 rounded-2xl border border-separator p-3 sm:p-4">
-                  <h3 className="text-sm font-medium">{t('fb.manage')}</h3>
-                  <div className="flex flex-col gap-1.5">
-                    <Label>{t('fb.mark')}</Label>
-                    <ToggleButtonGroup
-                      selectionMode="single"
-                      selectedKeys={status === 'open' ? [] : [status]}
-                      onSelectionChange={(keys) => setStatus(([...keys][0] as Status | undefined) ?? 'open')}
-                      isDetached
-                    >
-                      {MARKS.map((m) => (
-                        <ToggleButton key={m} id={m}>
-                          {t(`status.${m}`)}
-                        </ToggleButton>
-                      ))}
-                    </ToggleButtonGroup>
-                    <Description>{t('fb.markHint')}</Description>
-                  </div>
-                  <TextField value={tags} onChange={setTags}>
-                    <Label>{t('fb.tags')}</Label>
-                    <Input placeholder={t('fb.tagsHint')} />
-                  </TextField>
-                  <TextField value={note} onChange={setNote}>
-                    <Label>{t('fb.note')}</Label>
-                    <TextArea rows={3} />
-                  </TextField>
-                </section>
+                {writable ? (
+                  <section className="flex flex-col gap-3 rounded-2xl border border-separator p-3 sm:p-4">
+                    <h3 className="text-sm font-medium">{t('fb.manage')}</h3>
+                    <div className="flex flex-col gap-1.5">
+                      <Label>{t('fb.mark')}</Label>
+                      <ToggleButtonGroup
+                        selectionMode="single"
+                        selectedKeys={status === 'open' ? [] : [status]}
+                        onSelectionChange={(keys) => setStatus(([...keys][0] as Status | undefined) ?? 'open')}
+                        isDetached
+                      >
+                        {MARKS.map((m) => (
+                          <ToggleButton key={m} id={m}>
+                            {t(`status.${m}`)}
+                          </ToggleButton>
+                        ))}
+                      </ToggleButtonGroup>
+                      <Description>{t('fb.markHint')}</Description>
+                    </div>
+                    <TextField value={tags} onChange={setTags}>
+                      <Label>{t('fb.tags')}</Label>
+                      <Input placeholder={t('fb.tagsHint')} />
+                    </TextField>
+                    <TextField value={note} onChange={setNote}>
+                      <Label>{t('fb.note')}</Label>
+                      <TextArea rows={3} />
+                    </TextField>
+                  </section>
+                ) : (
+                  (fb.tags.length > 0 || fb.note) && (
+                    <section className="flex flex-col gap-2 rounded-2xl border border-separator p-3 sm:p-4">
+                      {fb.tags.length > 0 && <KV label={t('fb.tags')}>{fb.tags.join(', ')}</KV>}
+                      {fb.note && <KV label={t('fb.note')}><span className="whitespace-pre-wrap">{fb.note}</span></KV>}
+                    </section>
+                  )
+                )}
               </div>
             )}
           </Modal.Body>
-          {fb && (
+          {fb && writable && (
             <Modal.Footer className="pb-safe justify-between">
               <ConfirmButton
                 label={

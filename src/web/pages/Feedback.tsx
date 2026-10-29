@@ -6,6 +6,7 @@ import { api, errorMessage } from '../api'
 import { fmtShortTime, fmtTime, join } from '../format'
 import { useT } from '../i18n'
 import { MARKS, STATUSES, type AppSummary, type Feedback, type Stats } from '../types'
+import { useMe } from '../session'
 import { SimpleSelect, StatusChip, useDeviceLabel, useIsMobile } from '../ui'
 import { FeedbackDetailModal } from './FeedbackDetail'
 
@@ -63,6 +64,8 @@ export function FeedbackPage() {
   const [filtersOpen, setFiltersOpen] = useState(false)
   const mobile = useIsMobile()
   const deviceLabel = useDeviceLabel()
+  const me = useMe()
+  const pinned = me.kind === 'key' && !!me.app
 
   const set = (patch: Partial<Filters>) => setFilters((f) => ({ ...f, ...patch }))
 
@@ -125,13 +128,15 @@ export function FeedbackPage() {
 
   const selects = (
     <>
-      <SimpleSelect
-        className="w-full sm:w-44"
-        label={t('fb.app')}
-        value={filters.app}
-        onChange={(app) => set({ app })}
-        options={[{ id: ALL, label: t('common.all') }, ...apps.map((a) => ({ id: a.app, label: a.name ? `${a.name} (${a.app})` : a.app }))]}
-      />
+      {!pinned && (
+        <SimpleSelect
+          className="w-full sm:w-44"
+          label={t('fb.app')}
+          value={filters.app}
+          onChange={(app) => set({ app })}
+          options={[{ id: ALL, label: t('common.all') }, ...apps.map((a) => ({ id: a.app, label: a.name ? `${a.name} (${a.app})` : a.app }))]}
+        />
+      )}
       <SimpleSelect
         className="w-full sm:w-44"
         label={t('fb.status')}
